@@ -39,7 +39,7 @@ app = Flask(__name__)
 app.config["COMPRESS_DEBUG"] = True
 cache = SimpleCache()
 
-EXAC_FILES_DIRECTORY = "../exac_data/"
+EXAC_FILES_DIRECTORY = "/Users/phil/Downloads/exac_data"
 REGION_LIMIT = 1e5
 EXON_PADDING = 50
 # Load default config and override config from an environment variable
@@ -51,58 +51,39 @@ app.config.update(
         DEBUG=True,
         SECRET_KEY="development key",
         LOAD_DB_PARALLEL_PROCESSES=4,  # contigs assigned to threads, so good to make this a factor of 24 (eg. 2,3,4,6,8)
-        SITES_VCFS=glob.glob(
-            os.path.join(
-                os.path.dirname(__file__), EXAC_FILES_DIRECTORY, "ExAC*.vcf.gz"
-            )
-        ),
-        GENCODE_GTF=os.path.join(
-            os.path.dirname(__file__), EXAC_FILES_DIRECTORY, "gencode.gtf.gz"
-        ),
+        SITES_VCFS=glob.glob(os.path.join(EXAC_FILES_DIRECTORY, "ExAC*.vcf.gz")),
+        GENCODE_GTF=os.path.join(EXAC_FILES_DIRECTORY, "gencode.gtf.gz"),
         CANONICAL_TRANSCRIPT_FILE=os.path.join(
-            os.path.dirname(__file__),
             EXAC_FILES_DIRECTORY,
             "canonical_transcripts.txt.gz",
         ),
-        OMIM_FILE=os.path.join(
-            os.path.dirname(__file__), EXAC_FILES_DIRECTORY, "omim_info.txt.gz"
-        ),
+        OMIM_FILE=os.path.join(EXAC_FILES_DIRECTORY, "omim_info.txt.gz"),
         BASE_COVERAGE_FILES=glob.glob(
             os.path.join(
-                os.path.dirname(__file__),
                 EXAC_FILES_DIRECTORY,
                 "coverage",
                 "Panel.*.coverage.txt.gz",
             )
         ),
-        DBNSFP_FILE=os.path.join(
-            os.path.dirname(__file__), EXAC_FILES_DIRECTORY, "dbNSFP2.6_gene.gz"
-        ),
+        DBNSFP_FILE=os.path.join(EXAC_FILES_DIRECTORY, "dbNSFP2.6_gene.gz"),
         CONSTRAINT_FILE=os.path.join(
-            os.path.dirname(__file__),
             EXAC_FILES_DIRECTORY,
             "forweb_cleaned_exac_r03_march16_z_data_pLI_CNV-final.txt.gz",
         ),
         MNP_FILE=os.path.join(
-            os.path.dirname(__file__),
             EXAC_FILES_DIRECTORY,
             "MNPs_NotFiltered_ForBrowserRelease.txt.gz",
         ),
         CNV_FILE=os.path.join(
-            os.path.dirname(__file__),
             EXAC_FILES_DIRECTORY,
             "exac-gencode-exon.cnt.final.pop3",
         ),
-        CNV_GENE_FILE=os.path.join(
-            os.path.dirname(__file__), EXAC_FILES_DIRECTORY, "exac-final-cnvs.gene.rank"
-        ),
+        CNV_GENE_FILE=os.path.join(EXAC_FILES_DIRECTORY, "exac-final-cnvs.gene.rank"),
         # How to get a dbsnp142.txt.bgz file:
         #   wget ftp://ftp.ncbi.nlm.nih.gov/snp/organisms/human_9606_b142_GRCh37p13/database/organism_data/b142_SNPChrPosOnRef_105.bcp.gz
         #   zcat b142_SNPChrPosOnRef_105.bcp.gz | awk '$3 != ""' | perl -pi -e 's/ +/\t/g' | sort -k2,2 -k3,3n | bgzip -c > dbsnp142.txt.bgz
         #   tabix -s 2 -b 3 -e 3 dbsnp142.txt.bgz
-        DBSNP_FILE=os.path.join(
-            os.path.dirname(__file__), EXAC_FILES_DIRECTORY, "dbsnp142.txt.bgz"
-        ),
+        DBSNP_FILE=os.path.join(EXAC_FILES_DIRECTORY, "dbsnp142.txt.bgz"),
         READ_VIZ_DIR="/mongo/readviz",
     )
 )
@@ -225,12 +206,12 @@ def load_variants_file():
     print("Dropped db.variants")
 
     # grab variants from sites VCF
-    db.variants.ensure_index("xpos")
-    db.variants.ensure_index("xstart")
-    db.variants.ensure_index("xstop")
-    db.variants.ensure_index("rsid")
-    db.variants.ensure_index("genes")
-    db.variants.ensure_index("transcripts")
+    # db.variants.ensure_index("xpos")
+    # db.variants.ensure_index("xstart")
+    # db.variants.ensure_index("xstop")
+    # db.variants.ensure_index("rsid")
+    # db.variants.ensure_index("genes")
+    # db.variants.ensure_index("transcripts")
 
     sites_vcfs = app.config["SITES_VCFS"]
     if len(sites_vcfs) == 0:
@@ -238,15 +219,8 @@ def load_variants_file():
     elif len(sites_vcfs) > 1:
         raise Exception("More than one sites vcf file found: %s" % sites_vcfs)
 
-    procs = []
     num_procs = app.config["LOAD_DB_PARALLEL_PROCESSES"]
-    for i in range(num_procs):
-        p = Process(target=load_variants, args=(sites_vcfs[0], i, num_procs, db))
-        p.start()
-        procs.append(p)
-    return procs
-
-    # print 'Done loading variants. Took %s seconds' % int(time.time() - start_time)
+    load_variants(sites_vcfs[0], 0, num_procs, db)
 
 
 def load_constraint_information():
@@ -314,6 +288,7 @@ def load_gene_models():
     omim_annotations = {}
     with gzip.open(app.config["OMIM_FILE"]) as omim_file:
         for fields in get_omim_associations(omim_file):
+            print(fields)
             if fields is None:
                 continue
             gene, transcript, accession, description = fields
@@ -488,12 +463,12 @@ def load_db():
     # Initialize database
     # Don't need to explicitly create tables with mongo, just indices
     confirm = input(
-        "This will drop the database and reload. Are you sure you want to continue? [no] "
+        "This will drop the database and reload. Are you sure you want to continue? [y/n] "
     )
-    if not confirm.startswith("y"):
+    if confirm != "y":
         print("Exiting...")
         sys.exit(1)
-    all_procs = []
+
     for load_function in [
         load_variants_file,
         load_dbsnp_file,
@@ -503,11 +478,8 @@ def load_db():
         load_cnv_models,
         load_cnv_genes,
     ]:
-        procs = load_function()
-        all_procs.extend(procs)
-        print("Started %s processes to run %s" % (len(procs), load_function.__name__))
+        load_function()
 
-    [p.join() for p in all_procs]
     print("Done! Loading MNPs...")
     load_mnps()
     print("Done! Creating cache...")
