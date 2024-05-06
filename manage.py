@@ -1,4 +1,4 @@
-from flask.ext.script import Manager
+from flask_script import Manager
 from exac import app
 import exac
 
@@ -7,7 +7,7 @@ manager = Manager(app)
 
 @manager.command
 def hello():
-    print "hello"
+    print("hello")
 
 
 @manager.command
@@ -76,6 +76,6 @@ def create_cache():
 def precalculate_metrics():
     exac.precalculate_metrics()
 
+
 if __name__ == "__main__":
     manager.run()
-
