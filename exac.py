@@ -125,8 +125,8 @@ app = FastAPI(
     terms_of_service=None,
     contact=None,
     license_info=None,
-    docs_url="/api/docs",
-    redoc_url="/api/redoc",
+    docs_url="/api/docs/",
+    redoc_url="/api/redoc/",
     openapi_url="/api/openapi.json",
 )
 app.mount("/static", StaticFiles(directory="static"), name="static")
@@ -667,7 +667,7 @@ def awesome_autocomplete(request: Request, query):
     )
 
 
-@app.get("/awesome")
+@app.get("/awesome/")
 def awesome(request: Request):
     db = get_db()
     query = request.get("query")
@@ -692,7 +692,7 @@ def awesome(request: Request):
         raise Exception
 
 
-@app.get("/variant/<variant_str>", response_class=HTMLResponse)
+@app.get("/variant/<variant_str>/", response_class=HTMLResponse)
 def variant_page(request: Request, variant_str: str):
     db = get_db()
     try:
@@ -825,7 +825,7 @@ def variant_page(request: Request, variant_str: str):
         return Response(status_code=404)
 
 
-@app.get("/gene/<gene_id>")
+@app.get("/gene/<gene_id>/")
 def gene_page(request: Request, gene_id: str):
     if gene_id in settings.GENES_TO_CACHE:
         return open(
@@ -881,7 +881,7 @@ def _get_gene_page_content(request: Request, gene_id: str):
         return Response(status_code=404)
 
 
-@app.get("/transcript/<transcript_id>")
+@app.get("/transcript/<transcript_id>/")
 def transcript_page(request: Request, transcript_id):
     db = get_db()
     try:
@@ -928,7 +928,7 @@ def transcript_page(request: Request, transcript_id):
         return Response(status_code=404)
 
 
-@app.get("/region/<region_id>")
+@app.get("/region/<region_id>/")
 def region_page(request: Request, region_id):
     db = get_db()
     try:
@@ -981,7 +981,7 @@ def region_page(request: Request, region_id):
         return Response(status_code=404)
 
 
-@app.get("/dbsnp/<rsid>")
+@app.get("/dbsnp/<rsid>/")
 def dbsnp_page(request: Request, rsid):
     db = get_db()
     try:
@@ -1008,7 +1008,7 @@ def dbsnp_page(request: Request, rsid):
         return Response(status_code=404)
 
 
-@app.get("/not_found/<query>")
+@app.get("/not_found/<query>/")
 def not_found_page(request: Request, query):
     return templates.TemplateResponse(
         request=request,
@@ -1018,44 +1018,44 @@ def not_found_page(request: Request, query):
     )
 
 
-@app.get("/error/<query>")
+@app.get("/error/<query>/")
 def error_page(request: Request, query):
     return templates.TemplateResponse(
         request=request, name="error.html", status_code=404, context=dict(query=query)
     )
 
 
-@app.get("/downloads")
+@app.get("/downloads/")
 def downloads_page(request: Request):
     return templates.TemplateResponse(request=request, name="downloads.html")
 
 
-@app.get("/about")
+@app.get("/about/")
 def about_page(request: Request):
     return templates.TemplateResponse(request=request, name="about.html")
 
 
-@app.get("/participants")
+@app.get("/participants/")
 def participants_page(request: Request):
     return templates.TemplateResponse(request=request, name="about.html")
 
 
-@app.get("/terms")
+@app.get("/terms/")
 def terms_page(request: Request):
     return templates.TemplateResponse(request=request, name="terms.html")
 
 
-@app.get("/contact")
+@app.get("/contact/")
 def contact_page(request: Request):
     return templates.TemplateResponse(request=request, name="contact.html")
 
 
-@app.get("/faq")
+@app.get("/faq/")
 def faq_page(request: Request):
     return templates.TemplateResponse(request=request, name="faq.html")
 
 
-@app.get("/text")
+@app.get("/text/")
 def text_page(request: Request):
     db = get_db()
     query = request.get("text")
@@ -1084,7 +1084,7 @@ http://omim.org/entry/%(omim_accession)s"""
         return "Search types other than gene transcript not yet supported"
 
 
-@app.route("/read_viz/<path:path>")
+@app.get("/read_viz/<path:path>/")
 def read_viz_files(request: Request, path):
     full_path = os.path.abspath(os.path.join(settings.READ_VIZ_DIR, path))
 
