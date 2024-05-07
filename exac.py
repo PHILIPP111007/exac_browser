@@ -1,106 +1,144 @@
-import itertools
-import json
-import os
 import pymongo
 import pysam
-import gzip
-from parsing import *
-import logging
 import lookups
-import random
-import sys
-from utils import *
 
-from flask import (
-    Flask,
-    g,
-    request,
-    redirect,
-    abort,
-    render_template,
-    send_from_directory,
-)
-
-from flask import Response
-from collections import defaultdict, OrderedDict
-from flask_caching import SimpleCache
 
 from multiprocessing import Process
-import glob
 import sqlite3
 import traceback
+
+
+# NEW #################################################################
+#######################################################################
+import os
+import sys
+import glob
 import time
+import random
+import re
+import itertools
+from collections import defaultdict, OrderedDict
+import json
+import gzip
 
-logging.getLogger().addHandler(logging.StreamHandler())
-logging.getLogger().setLevel(logging.INFO)
+import uvicorn
+from fastapi import FastAPI, Request, Response
+from fastapi.responses import HTMLResponse, RedirectResponse
+from pydantic_settings import BaseSettings
+from fastapi.logger import logger
+from fastapi.staticfiles import StaticFiles
+from fastapi.templating import Jinja2Templates
 
+import numpy
 
-app = Flask(__name__)
-app.config["COMPRESS_DEBUG"] = True
-cache = SimpleCache()
+from parsing import (
+    get_base_coverage_from_file,
+    get_variants_from_sites_vcf,
+    get_mnp_data,
+    get_constraint_information,
+    get_canonical_transcripts,
+    get_omim_associations,
+    get_genes_from_gencode_gtf,
+    get_transcripts_from_gencode_gtf,
+    get_exons_from_gencode_gtf,
+    get_cnvs_from_txt,
+    get_cnvs_per_gene,
+    get_dbnsfp_info,
+    get_snp_from_dbsnp_file,
+)
+from utils import (
+    AF_BUCKETS,
+    add_transcript_coordinate_to_variants,
+    add_consequence_to_variant,
+    get_proper_hgvs,
+    remove_extraneous_vep_annotations,
+    order_vep_by_csq,
+    get_xpos,
+)
+#######################################################################
+#######################################################################
+
 
 EXAC_FILES_DIRECTORY = "/Users/phil/Downloads/exac_data"
 REGION_LIMIT = 1e5
 EXON_PADDING = 50
-# Load default config and override config from an environment variable
-app.config.update(
-    dict(
-        DB_HOST="localhost",
-        DB_PORT=27017,
-        DB_NAME="exac",
-        DEBUG=True,
-        SECRET_KEY="development key",
-        LOAD_DB_PARALLEL_PROCESSES=4,  # contigs assigned to threads, so good to make this a factor of 24 (eg. 2,3,4,6,8)
-        SITES_VCFS=glob.glob(os.path.join(EXAC_FILES_DIRECTORY, "ExAC*.vcf.gz")),
-        GENCODE_GTF=os.path.join(EXAC_FILES_DIRECTORY, "gencode.gtf.gz"),
-        CANONICAL_TRANSCRIPT_FILE=os.path.join(
-            EXAC_FILES_DIRECTORY,
-            "canonical_transcripts.txt.gz",
-        ),
-        OMIM_FILE=os.path.join(EXAC_FILES_DIRECTORY, "omim_info.txt.gz"),
-        BASE_COVERAGE_FILES=glob.glob(
-            os.path.join(
-                EXAC_FILES_DIRECTORY,
-                "coverage",
-                "Panel.*.coverage.txt.gz",
-            )
-        ),
-        DBNSFP_FILE=os.path.join(EXAC_FILES_DIRECTORY, "dbNSFP2.6_gene.gz"),
-        CONSTRAINT_FILE=os.path.join(
-            EXAC_FILES_DIRECTORY,
-            "forweb_cleaned_exac_r03_march16_z_data_pLI_CNV-final.txt.gz",
-        ),
-        MNP_FILE=os.path.join(
-            EXAC_FILES_DIRECTORY,
-            "MNPs_NotFiltered_ForBrowserRelease.txt.gz",
-        ),
-        CNV_FILE=os.path.join(
-            EXAC_FILES_DIRECTORY,
-            "exac-gencode-exon.cnt.final.pop3",
-        ),
-        CNV_GENE_FILE=os.path.join(EXAC_FILES_DIRECTORY, "exac-final-cnvs.gene.rank"),
-        # How to get a dbsnp142.txt.bgz file:
-        #   wget ftp://ftp.ncbi.nlm.nih.gov/snp/organisms/human_9606_b142_GRCh37p13/database/organism_data/b142_SNPChrPosOnRef_105.bcp.gz
-        #   zcat b142_SNPChrPosOnRef_105.bcp.gz | awk '$3 != ""' | perl -pi -e 's/ +/\t/g' | sort -k2,2 -k3,3n | bgzip -c > dbsnp142.txt.bgz
-        #   tabix -s 2 -b 3 -e 3 dbsnp142.txt.bgz
-        DBSNP_FILE=os.path.join(EXAC_FILES_DIRECTORY, "dbsnp142.txt.bgz"),
-        READ_VIZ_DIR="/mongo/readviz",
-    )
-)
 
-GENE_CACHE_DIR = os.path.join(os.path.dirname(__file__), "gene_cache")
-GENES_TO_CACHE = {
-    l.strip("\n")
-    for l in open(os.path.join(os.path.dirname(__file__), "genes_to_cache.txt"))
-}
+
+class Settings(BaseSettings):
+    DB_HOST: str = "localhost"
+    DB_PORT: int = 27017
+    DB_NAME: str = "exac"
+    DEBUG: bool = True
+    SECRET_KEY: str = "development key"
+    LOAD_DB_PARALLEL_PROCESSES: int = 4  # contigs assigned to threads, so good to make this a factor of 24 (eg. 2,3,4,6,8)
+    SITES_VCFS: list[str] = glob.glob(
+        os.path.join(EXAC_FILES_DIRECTORY, "ExAC*.vcf.gz")
+    )
+    GENCODE_GTF: str = os.path.join(EXAC_FILES_DIRECTORY, "gencode.gtf.gz")
+    CANONICAL_TRANSCRIPT_FILE: str = os.path.join(
+        EXAC_FILES_DIRECTORY,
+        "canonical_transcripts.txt.gz",
+    )
+    OMIM_FILE: str = os.path.join(EXAC_FILES_DIRECTORY, "omim_info.txt.gz")
+    BASE_COVERAGE_FILES: list[str] = glob.glob(
+        os.path.join(
+            EXAC_FILES_DIRECTORY,
+            "coverage",
+            "Panel.*.coverage.txt.gz",
+        )
+    )
+    DBNSFP_FILE: str = os.path.join(EXAC_FILES_DIRECTORY, "dbNSFP2.6_gene.gz")
+    CONSTRAINT_FILE: str = os.path.join(
+        EXAC_FILES_DIRECTORY,
+        "forweb_cleaned_exac_r03_march16_z_data_pLI_CNV-final.txt.gz",
+    )
+    MNP_FILE: str = os.path.join(
+        EXAC_FILES_DIRECTORY,
+        "MNPs_NotFiltered_ForBrowserRelease.txt.gz",
+    )
+    CNV_FILE: str = os.path.join(
+        EXAC_FILES_DIRECTORY,
+        "exac-gencode-exon.cnt.final.pop3",
+    )
+    CNV_GENE_FILE: str = os.path.join(EXAC_FILES_DIRECTORY, "exac-final-cnvs.gene.rank")
+    # How to get a dbsnp142.txt.bgz file:
+    #   wget ftp://ftp.ncbi.nlm.nih.gov/snp/organisms/human_9606_b142_GRCh37p13/database/organism_data/b142_SNPChrPosOnRef_105.bcp.gz
+    #   zcat b142_SNPChrPosOnRef_105.bcp.gz | awk '$3 != ""' | perl -pi -e 's/ +/\t/g' | sort -k2,2 -k3,3n | bgzip -c > dbsnp142.txt.bgz
+    #   tabix -s 2 -b 3 -e 3 dbsnp142.txt.bgz
+    DBSNP_FILE: str = os.path.join(EXAC_FILES_DIRECTORY, "dbsnp142.txt.bgz")
+    READ_VIZ_DIR: str = os.path.join("/mongo", "readviz")
+
+    GENE_CACHE_DIR: str = os.path.join(os.path.dirname(__file__), "gene_cache")
+    GENES_TO_CACHE: set[str] = {
+        l.strip("\n")
+        for l in open(os.path.join(os.path.dirname(__file__), "genes_to_cache.txt"))
+    }
+
+
+settings = Settings()
+
+
+app = FastAPI(
+    title="EXAC Browser",
+    description="Description",
+    version="0.0.1",
+    terms_of_service=None,
+    contact=None,
+    license_info=None,
+    docs_url="/api/docs",
+    redoc_url="/api/redoc",
+    openapi_url="/api/openapi.json",
+)
+app.mount("/static", StaticFiles(directory="static"), name="static")
+templates = Jinja2Templates(directory="templates")
 
 
 def connect_db():
     """
     Connects to the specific database.
     """
-    client = pymongo.MongoClient(host=app.config["DB_HOST"], port=app.config["DB_PORT"])
-    return client[app.config["DB_NAME"]]
+    client = pymongo.MongoClient(host=settings.DB_HOST, port=settings.DB_PORT)
+    return client[settings.DB_NAME]
 
 
 def parse_tabix_file_subset(tabix_filenames, subset_i, subset_n, record_parser):
@@ -129,7 +167,7 @@ def parse_tabix_file_subset(tabix_filenames, subset_i, subset_n, record_parser):
     ]  # get every n'th tabix_file/contig pair
     short_filenames = ", ".join(map(os.path.basename, tabix_filenames))
     num_file_contig_pairs = len(tabix_file_contig_subset)
-    print(
+    logger.info(
         (
             "Loading subset %(subset_i)s of %(subset_n)s total: %(num_file_contig_pairs)s contigs from "
             "%(short_filenames)s"
@@ -148,7 +186,7 @@ def parse_tabix_file_subset(tabix_filenames, subset_i, subset_n, record_parser):
 
             if counter % 100000 == 0:
                 seconds_elapsed = int(time.time() - start_time)
-                print(
+                logger.info(
                     (
                         "Loaded %(counter)s records from subset %(subset_i)s of %(subset_n)s from %(short_filenames)s "
                         "(%(seconds_elapsed)s seconds)"
@@ -156,7 +194,7 @@ def parse_tabix_file_subset(tabix_filenames, subset_i, subset_n, record_parser):
                     % locals()
                 )
 
-    print(
+    logger.info(
         "Finished loading subset %(subset_i)s from  %(short_filenames)s (%(counter)s records)"
         % locals()
     )
@@ -174,21 +212,21 @@ def load_base_coverage():
 
     db = get_db()
     db.base_coverage.drop()
-    print("Dropped db.base_coverage")
+    logger.info("Dropped db.base_coverage")
     # load coverage first; variant info will depend on coverage
     db.base_coverage.ensure_index("xpos")
 
     procs = []
-    coverage_files = app.config["BASE_COVERAGE_FILES"]
-    num_procs = app.config["LOAD_DB_PARALLEL_PROCESSES"]
-    random.shuffle(app.config["BASE_COVERAGE_FILES"])
+    coverage_files = settings.BASE_COVERAGE_FILES
+    num_procs = settings.LOAD_DB_PARALLEL_PROCESSES
+    random.shuffle(settings.BASE_COVERAGE_FILES)
     for i in range(num_procs):
         p = Process(target=load_coverage, args=(coverage_files, i, num_procs, db))
         p.start()
         procs.append(p)
     return procs
 
-    # print 'Done loading coverage. Took %s seconds' % int(time.time() - start_time)
+    # logger.info 'Done loading coverage. Took %s seconds' % int(time.time() - start_time)
 
 
 def load_variants_file():
@@ -203,23 +241,23 @@ def load_variants_file():
 
     db = get_db()
     db.variants.drop()
-    print("Dropped db.variants")
+    logger.info("Dropped db.variants")
 
     # grab variants from sites VCF
-    # db.variants.ensure_index("xpos")
-    # db.variants.ensure_index("xstart")
-    # db.variants.ensure_index("xstop")
-    # db.variants.ensure_index("rsid")
-    # db.variants.ensure_index("genes")
-    # db.variants.ensure_index("transcripts")
+    db.variants.ensure_index("xpos")
+    db.variants.ensure_index("xstart")
+    db.variants.ensure_index("xstop")
+    db.variants.ensure_index("rsid")
+    db.variants.ensure_index("genes")
+    db.variants.ensure_index("transcripts")
 
-    sites_vcfs = app.config["SITES_VCFS"]
+    sites_vcfs = settings.SITES_VCFS
     if len(sites_vcfs) == 0:
         raise IOError("No vcf file found")
     elif len(sites_vcfs) > 1:
         raise Exception("More than one sites vcf file found: %s" % sites_vcfs)
 
-    num_procs = app.config["LOAD_DB_PARALLEL_PROCESSES"]
+    num_procs = settings.LOAD_DB_PARALLEL_PROCESSES
     load_variants(sites_vcfs[0], 0, num_procs, db)
 
 
@@ -227,16 +265,16 @@ def load_constraint_information():
     db = get_db()
 
     db.constraint.drop()
-    print("Dropped db.constraint.")
+    logger.info("Dropped db.constraint.")
 
     start_time = time.time()
 
-    with gzip.open(app.config["CONSTRAINT_FILE"]) as constraint_file:
+    with gzip.open(settings.CONSTRAINT_FILE) as constraint_file:
         for transcript in get_constraint_information(constraint_file):
             db.constraint.insert(transcript, w=0)
 
     db.constraint.ensure_index("transcript")
-    print(
+    logger.info(
         "Done loading constraint info. Took %s seconds" % int(time.time() - start_time)
     )
 
@@ -246,14 +284,14 @@ def load_mnps():
     start_time = time.time()
 
     db.variants.ensure_index("has_mnp")
-    print("Done indexing.")
+    logger.info("Done indexing.")
     while db.variants.find_and_modify(
         {"has_mnp": True}, {"$unset": {"has_mnp": "", "mnps": ""}}
     ):
         pass
-    print("Deleted MNP data.")
+    logger.info("Deleted MNP data.")
 
-    with gzip.open(app.config["MNP_FILE"]) as mnp_file:
+    with gzip.open(settings.MNP_FILE) as mnp_file:
         for mnp in get_mnp_data(mnp_file):
             variant = lookups.get_raw_variant(
                 db, mnp["xpos"], mnp["ref"], mnp["alt"], True
@@ -265,7 +303,9 @@ def load_mnps():
             )
 
     db.variants.ensure_index("has_mnp")
-    print("Done loading MNP info. Took %s seconds" % int(time.time() - start_time))
+    logger.info(
+        "Done loading MNP info. Took %s seconds" % int(time.time() - start_time)
+    )
 
 
 def load_gene_models():
@@ -274,28 +314,26 @@ def load_gene_models():
     db.genes.drop()
     db.transcripts.drop()
     db.exons.drop()
-    print("Dropped db.genes, db.transcripts, and db.exons.")
+    logger.info("Dropped db.genes, db.transcripts, and db.exons.")
 
     start_time = time.time()
 
     canonical_transcripts = {}
-    with gzip.open(
-        app.config["CANONICAL_TRANSCRIPT_FILE"]
-    ) as canonical_transcript_file:
+    with gzip.open(settings.CANONICAL_TRANSCRIPT_FILE) as canonical_transcript_file:
         for gene, transcript in get_canonical_transcripts(canonical_transcript_file):
             canonical_transcripts[gene] = transcript
 
     omim_annotations = {}
-    with gzip.open(app.config["OMIM_FILE"]) as omim_file:
+    with gzip.open(settings.OMIM_FILE) as omim_file:
         for fields in get_omim_associations(omim_file):
-            print(fields)
+            logger.info(fields)
             if fields is None:
                 continue
             gene, transcript, accession, description = fields
             omim_annotations[gene] = (accession, description)
 
     dbnsfp_info = {}
-    with gzip.open(app.config["DBNSFP_FILE"]) as dbnsfp_file:
+    with gzip.open(settings.DBNSFP_FILE) as dbnsfp_file:
         for dbnsfp_gene in get_dbnsfp_info(dbnsfp_file):
             other_names = [
                 other_name.upper() for other_name in dbnsfp_gene["gene_other_names"]
@@ -305,11 +343,13 @@ def load_gene_models():
                 other_names,
             )
 
-    print("Done loading metadata. Took %s seconds" % int(time.time() - start_time))
+    logger.info(
+        "Done loading metadata. Took %s seconds" % int(time.time() - start_time)
+    )
 
     # grab genes from GTF
     start_time = time.time()
-    with gzip.open(app.config["GENCODE_GTF"]) as gtf_file:
+    with gzip.open(settings.GENCODE_GTF) as gtf_file:
         for gene in get_genes_from_gencode_gtf(gtf_file):
             gene_id = gene["gene_id"]
             if gene_id in canonical_transcripts:
@@ -322,7 +362,7 @@ def load_gene_models():
                 gene["other_names"] = dbnsfp_info[gene_id][1]
             db.genes.insert(gene, w=0)
 
-    print("Done loading genes. Took %s seconds" % int(time.time() - start_time))
+    logger.info("Done loading genes. Took %s seconds" % int(time.time() - start_time))
 
     start_time = time.time()
     db.genes.ensure_index("gene_id")
@@ -331,36 +371,42 @@ def load_gene_models():
     db.genes.ensure_index("other_names")
     db.genes.ensure_index("xstart")
     db.genes.ensure_index("xstop")
-    print("Done indexing gene table. Took %s seconds" % int(time.time() - start_time))
+    logger.info(
+        "Done indexing gene table. Took %s seconds" % int(time.time() - start_time)
+    )
 
     # and now transcripts
     start_time = time.time()
-    with gzip.open(app.config["GENCODE_GTF"]) as gtf_file:
+    with gzip.open(settings.GENCODE_GTF) as gtf_file:
         db.transcripts.insert(
             (transcript for transcript in get_transcripts_from_gencode_gtf(gtf_file)),
             w=0,
         )
-    print("Done loading transcripts. Took %s seconds" % int(time.time() - start_time))
+    logger.info(
+        "Done loading transcripts. Took %s seconds" % int(time.time() - start_time)
+    )
 
     start_time = time.time()
     db.transcripts.ensure_index("transcript_id")
     db.transcripts.ensure_index("gene_id")
-    print(
+    logger.info(
         "Done indexing transcript table. Took %s seconds"
         % int(time.time() - start_time)
     )
 
     # Building up gene definitions
     start_time = time.time()
-    with gzip.open(app.config["GENCODE_GTF"]) as gtf_file:
+    with gzip.open(settings.GENCODE_GTF) as gtf_file:
         db.exons.insert((exon for exon in get_exons_from_gencode_gtf(gtf_file)), w=0)
-    print("Done loading exons. Took %s seconds" % int(time.time() - start_time))
+    logger.info("Done loading exons. Took %s seconds" % int(time.time() - start_time))
 
     start_time = time.time()
     db.exons.ensure_index("exon_id")
     db.exons.ensure_index("transcript_id")
     db.exons.ensure_index("gene_id")
-    print("Done indexing exon table. Took %s seconds" % int(time.time() - start_time))
+    logger.info(
+        "Done indexing exon table. Took %s seconds" % int(time.time() - start_time)
+    )
 
     return []
 
@@ -369,16 +415,16 @@ def load_cnv_models():
     db = get_db()
 
     db.cnvs.drop()
-    print("Dropped db.cnvs.")
+    logger.info("Dropped db.cnvs.")
 
     start_time = time.time()
-    with open(app.config["CNV_FILE"]) as cnv_txt_file:
+    with open(settings.CNV_FILE) as cnv_txt_file:
         for cnv in get_cnvs_from_txt(cnv_txt_file):
             db.cnvs.insert(cnv, w=0)
             # progress.update(gtf_file.fileobj.tell())
         # progress.finish()
 
-    print("Done loading CNVs. Took %s seconds" % int(time.time() - start_time))
+    logger.info("Done loading CNVs. Took %s seconds" % int(time.time() - start_time))
 
 
 def drop_cnv_genes():
@@ -390,13 +436,15 @@ def drop_cnv_genes():
 def load_cnv_genes():
     db = get_db()
     start_time = time.time()
-    with open(app.config["CNV_GENE_FILE"]) as cnv_gene_file:
+    with open(settings.CNV_GENE_FILE) as cnv_gene_file:
         for cnvgene in get_cnvs_per_gene(cnv_gene_file):
             db.cnvgenes.insert(cnvgene, w=0)
             # progress.update(gtf_file.fileobj.tell())
         # progress.finish()
 
-    print("Done loading CNVs in genes. Took %s seconds" % int(time.time() - start_time))
+    logger.info(
+        "Done loading CNVs in genes. Took %s seconds" % int(time.time() - start_time)
+    )
 
 
 def load_dbsnp_file():
@@ -420,15 +468,15 @@ def load_dbsnp_file():
     db.dbsnp.ensure_index("rsid")
     db.dbsnp.ensure_index("xpos")
     start_time = time.time()
-    dbsnp_file = app.config["DBSNP_FILE"]
+    dbsnp_file = settings.DBSNP_FILE
 
-    print("Loading dbsnp from %s" % dbsnp_file)
+    logger.info("Loading dbsnp from %s" % dbsnp_file)
     if os.path.isfile(dbsnp_file + ".tbi"):
-        num_procs = app.config["LOAD_DB_PARALLEL_PROCESSES"]
+        num_procs = settings.LOAD_DB_PARALLEL_PROCESSES
     else:
         # see if non-tabixed .gz version exists
         if os.path.isfile(dbsnp_file):
-            print(
+            logger.info(
                 (
                     "WARNING: %(dbsnp_file)s.tbi index file not found. Will use single thread to load dbsnp."
                     "To create a tabix-indexed dbsnp file based on UCSC dbsnp, do: \n"
@@ -449,11 +497,11 @@ def load_dbsnp_file():
         procs.append(p)
 
     return procs
-    # print 'Done loading dbSNP. Took %s seconds' % int(time.time() - start_time)
+    # logger.info 'Done loading dbSNP. Took %s seconds' % int(time.time() - start_time)
 
     # start_time = time.time()
     # db.dbsnp.ensure_index('rsid')
-    # print 'Done indexing dbSNP table. Took %s seconds' % int(time.time() - start_time)
+    # logger.info 'Done indexing dbSNP table. Took %s seconds' % int(time.time() - start_time)
 
 
 def load_db():
@@ -466,7 +514,7 @@ def load_db():
         "This will drop the database and reload. Are you sure you want to continue? [y/n] "
     )
     if confirm != "y":
-        print("Exiting...")
+        logger.info("Exiting...")
         sys.exit(1)
 
     for load_function in [
@@ -480,11 +528,11 @@ def load_db():
     ]:
         load_function()
 
-    print("Done! Loading MNPs...")
+    logger.info("Done! Loading MNPs...")
     load_mnps()
-    print("Done! Creating cache...")
+    logger.info("Done! Creating cache...")
     create_cache()
-    print("Done!")
+    logger.info("Done!")
 
 
 def create_cache():
@@ -505,26 +553,24 @@ def create_cache():
     f.close()
 
     # create static gene pages for genes in
-    if not os.path.exists(GENE_CACHE_DIR):
-        os.makedirs(GENE_CACHE_DIR)
+    if not os.path.exists(settings.GENE_CACHE_DIR):
+        os.makedirs(settings.GENE_CACHE_DIR)
 
     # get list of genes ordered by num_variants
-    for gene_id in GENES_TO_CACHE:
+    for gene_id in settings.GENES_TO_CACHE:
         try:
-            page_content = get_gene_page_content(gene_id)
+            page_content = _get_gene_page_content(gene_id)
         except Exception as e:
-            print(e)
+            logger.info(e)
             continue
-        f = open(os.path.join(GENE_CACHE_DIR, "{}.html".format(gene_id)), "w")
+        f = open(os.path.join(settings.GENE_CACHE_DIR, "{}.html".format(gene_id)), "w")
         f.write(page_content)
         f.close()
 
 
 def precalculate_metrics():
-    import numpy
-
     db = get_db()
-    print("Reading %s variants..." % db.variants.count())
+    logger.info("Reading %s variants..." % db.variants.count())
     metrics = defaultdict(list)
     binned_metrics = defaultdict(list)
     progress = 0
@@ -549,13 +595,13 @@ def precalculate_metrics():
                     break
         progress += 1
         if not progress % 100000:
-            print(
+            logger.info(
                 "Read %s variants. Took %s seconds"
                 % (progress, int(time.time() - start_time))
             )
-    print("Done reading variants. Dropping metrics database... ")
+    logger.info("Done reading variants. Dropping metrics database... ")
     db.metrics.drop()
-    print("Dropped metrics database. Calculating metrics...")
+    logger.info("Dropped metrics database. Calculating metrics...")
     for metric in metrics:
         bin_range = None
         data = map(numpy.log, metrics[metric]) if metric == "DP" else metrics[metric]
@@ -581,7 +627,7 @@ def precalculate_metrics():
             {"metric": "binned_%s" % metric, "mids": mids, "hist": list(hist[0])}
         )
     db.metrics.ensure_index("metric")
-    print("Done pre-calculating metrics!")
+    logger.info("Done pre-calculating metrics!")
 
 
 def get_db():
@@ -601,13 +647,13 @@ def get_db():
 #         g.db_conn.close()
 
 
-@app.route("/")
-def homepage():
-    return render_template("homepage.html")
+@app.get("/", response_class=HTMLResponse)
+def homepage(request: Request):
+    return templates.TemplateResponse(request=request, name="homepage.html")
 
 
-@app.route("/autocomplete/<query>")
-def awesome_autocomplete(query):
+@app.get("/autocomplete/<query>")
+def awesome_autocomplete(request: Request, query):
     if not hasattr(g, "autocomplete_strings"):
         g.autocomplete_strings = [
             s.strip()
@@ -617,37 +663,37 @@ def awesome_autocomplete(query):
         ]
     suggestions = lookups.get_awesomebar_suggestions(g, query)
     return Response(
-        json.dumps([{"value": s} for s in suggestions]), mimetype="application/json"
+        json.dumps([{"value": s} for s in suggestions]), media_type="application/json"
     )
 
 
-@app.route("/awesome")
-def awesome():
+@app.get("/awesome")
+def awesome(request: Request):
     db = get_db()
-    query = request.args.get("query")
+    query = request.get("query")
     datatype, identifier = lookups.get_awesomebar_result(db, query)
 
-    print("Searched for %s: %s" % (datatype, identifier))
+    logger.info("Searched for %s: %s" % (datatype, identifier))
     if datatype == "gene":
-        return redirect("/gene/{}".format(identifier))
+        return RedirectResponse("/gene/{}".format(identifier))
     elif datatype == "transcript":
-        return redirect("/transcript/{}".format(identifier))
+        return RedirectResponse("/transcript/{}".format(identifier))
     elif datatype == "variant":
-        return redirect("/variant/{}".format(identifier))
+        return RedirectResponse("/variant/{}".format(identifier))
     elif datatype == "region":
-        return redirect("/region/{}".format(identifier))
+        return RedirectResponse("/region/{}".format(identifier))
     elif datatype == "dbsnp_variant_set":
-        return redirect("/dbsnp/{}".format(identifier))
+        return RedirectResponse("/dbsnp/{}".format(identifier))
     elif datatype == "error":
-        return redirect("/error/{}".format(identifier))
+        return RedirectResponse("/error/{}".format(identifier))
     elif datatype == "not_found":
-        return redirect("/not_found/{}".format(identifier))
+        return RedirectResponse("/not_found/{}".format(identifier))
     else:
         raise Exception
 
 
-@app.route("/variant/<variant_str>")
-def variant_page(variant_str):
+@app.get("/variant/<variant_str>", response_class=HTMLResponse)
+def variant_page(request: Request, variant_str: str):
     db = get_db()
     try:
         chrom, pos, ref, alt = variant_str.split("-")
@@ -679,12 +725,12 @@ def variant_page(variant_str):
         # check the appropriate sqlite db to get the *expected* number of
         # available bams and *actual* number of available bams for this variant
         sqlite_db_path = os.path.join(
-            app.config["READ_VIZ_DIR"],
+            settings.READ_VIZ_DIR,
             "combined_bams",
             chrom,
             "combined_chr%s_%03d.db" % (chrom, pos % 1000),
         )
-        logging.info(sqlite_db_path)
+        logger.info(sqlite_db_path)
         try:
             read_viz_db = sqlite3.connect(sqlite_db_path)
             n_het = read_viz_db.execute(
@@ -704,7 +750,7 @@ def variant_page(variant_str):
             ).fetchone()
             read_viz_db.close()
         except Exception:
-            logging.error("Error when accessing sqlite db: %s - %s", sqlite_db_path, e)
+            logger.error("Error when accessing sqlite db: %s - %s", sqlite_db_path, e)
             n_het = n_hom = n_hemi = None
 
         read_viz_dict = {
@@ -743,7 +789,7 @@ def variant_page(variant_str):
             read_viz_dict[het_or_hom_or_hemi]["readgroups"] = [
                 "%(chrom)s-%(pos)s-%(ref)s-%(alt)s_%(het_or_hom_or_hemi)s%(i)s"
                 % locals()
-                for i in range(read_viz_dict[het_or_hom_or_hemi]["n_available"])
+                for _ in range(read_viz_dict[het_or_hom_or_hemi]["n_available"])
             ]  # eg. '1-157768000-G-C_hom1',
 
             read_viz_dict[het_or_hom_or_hemi]["urls"] = [
@@ -753,67 +799,70 @@ def variant_page(variant_str):
                     chrom,
                     "combined_chr%s_%03d.bam" % (chrom, pos % 1000),
                 )
-                for i in range(read_viz_dict[het_or_hom_or_hemi]["n_available"])
+                for _ in range(read_viz_dict[het_or_hom_or_hemi]["n_available"])
             ]
 
         read_viz_dict["total_available"] = total_available
         read_viz_dict["total_expected"] = total_expected
 
-        print("Rendering variant: %s" % variant_str)
-        return render_template(
-            "variant.html",
-            variant=variant,
-            base_coverage=base_coverage,
-            consequences=consequences,
-            any_covered=any_covered,
-            metrics=metrics,
-            read_viz=read_viz_dict,
+        logger.info("Rendering variant: %s" % variant_str)
+        return templates.TemplateResponse(
+            request=request,
+            name="variant.html",
+            context=dict(
+                variant=variant,
+                base_coverage=base_coverage,
+                consequences=consequences,
+                any_covered=any_covered,
+                metrics=metrics,
+                read_viz=read_viz_dict,
+            ),
         )
     except Exception:
-        print("Failed on variant:", variant_str, ";Error=", traceback.format_exc())
-        abort(404)
+        logger.info(
+            "Failed on variant:", variant_str, ";Error=", traceback.format_exc()
+        )
+        return Response(status_code=404)
 
 
-@app.route("/gene/<gene_id>")
-def gene_page(gene_id):
-    if gene_id in GENES_TO_CACHE:
-        return open(os.path.join(GENE_CACHE_DIR, "{}.html".format(gene_id))).read()
+@app.get("/gene/<gene_id>")
+def gene_page(request: Request, gene_id: str):
+    if gene_id in settings.GENES_TO_CACHE:
+        return open(
+            os.path.join(settings.GENE_CACHE_DIR, "{}.html".format(gene_id))
+        ).read()
     else:
-        return get_gene_page_content(gene_id)
+        return _get_gene_page_content(request, gene_id)
 
 
-def get_gene_page_content(gene_id):
+def _get_gene_page_content(request: Request, gene_id: str):
     db = get_db()
     try:
         gene = lookups.get_gene(db, gene_id)
         if gene is None:
-            abort(404)
-        cache_key = "t-gene-{}".format(gene_id)
-        t = cache.get(cache_key)
-        if t is None:
-            variants_in_gene = lookups.get_variants_in_gene(db, gene_id)
-            transcripts_in_gene = lookups.get_transcripts_in_gene(db, gene_id)
+            return Response(status_code=404)
 
-            # Get some canonical transcript and corresponding info
-            transcript_id = gene["canonical_transcript"]
-            transcript = lookups.get_transcript(db, transcript_id)
-            variants_in_transcript = lookups.get_variants_in_transcript(
-                db, transcript_id
-            )
-            cnvs_in_transcript = lookups.get_exons_cnvs(db, transcript_id)
-            cnvs_per_gene = lookups.get_cnvs(db, gene_id)
-            coverage_stats = lookups.get_coverage_for_transcript(
-                db,
-                transcript["xstart"] - EXON_PADDING,
-                transcript["xstop"] + EXON_PADDING,
-            )
-            add_transcript_coordinate_to_variants(
-                db, variants_in_transcript, transcript_id
-            )
-            constraint_info = lookups.get_constraint_for_transcript(db, transcript_id)
+        variants_in_gene = lookups.get_variants_in_gene(db, gene_id)
+        transcripts_in_gene = lookups.get_transcripts_in_gene(db, gene_id)
 
-            t = render_template(
-                "gene.html",
+        # Get some canonical transcript and corresponding info
+        transcript_id = gene["canonical_transcript"]
+        transcript = lookups.get_transcript(db, transcript_id)
+        variants_in_transcript = lookups.get_variants_in_transcript(db, transcript_id)
+        cnvs_in_transcript = lookups.get_exons_cnvs(db, transcript_id)
+        cnvs_per_gene = lookups.get_cnvs(db, gene_id)
+        coverage_stats = lookups.get_coverage_for_transcript(
+            db,
+            transcript["xstart"] - EXON_PADDING,
+            transcript["xstop"] + EXON_PADDING,
+        )
+        add_transcript_coordinate_to_variants(db, variants_in_transcript, transcript_id)
+        constraint_info = lookups.get_constraint_for_transcript(db, transcript_id)
+
+        t = templates.TemplateResponse(
+            request=request,
+            name="gene.html",
+            context=dict(
                 gene=gene,
                 transcript=transcript,
                 variants_in_gene=variants_in_gene,
@@ -823,45 +872,38 @@ def get_gene_page_content(gene_id):
                 cnvs=cnvs_in_transcript,
                 cnvgenes=cnvs_per_gene,
                 constraint=constraint_info,
-            )
-            cache.set(cache_key, t, timeout=1000 * 60)
-        print("Rendering gene: %s" % gene_id)
+            ),
+        )
+        logger.info("Rendering gene: %s" % gene_id)
         return t
     except Exception:
-        print("Failed on gene:", gene_id, ";Error=", traceback.format_exc())
-        abort(404)
+        logger.info("Failed on gene:", gene_id, ";Error=", traceback.format_exc())
+        return Response(status_code=404)
 
 
-@app.route("/transcript/<transcript_id>")
-def transcript_page(transcript_id):
+@app.get("/transcript/<transcript_id>")
+def transcript_page(request: Request, transcript_id):
     db = get_db()
     try:
         transcript = lookups.get_transcript(db, transcript_id)
 
-        cache_key = "t-transcript-{}".format(transcript_id)
-        t = cache.get(cache_key)
-        if t is None:
-            gene = lookups.get_gene(db, transcript["gene_id"])
-            gene["transcripts"] = lookups.get_transcripts_in_gene(
-                db, transcript["gene_id"]
-            )
-            variants_in_transcript = lookups.get_variants_in_transcript(
-                db, transcript_id
-            )
-            cnvs_in_transcript = lookups.get_exons_cnvs(db, transcript_id)
-            cnvs_per_gene = lookups.get_cnvs(db, transcript["gene_id"])
-            coverage_stats = lookups.get_coverage_for_transcript(
-                db,
-                transcript["xstart"] - EXON_PADDING,
-                transcript["xstop"] + EXON_PADDING,
-            )
+        gene = lookups.get_gene(db, transcript["gene_id"])
+        gene["transcripts"] = lookups.get_transcripts_in_gene(db, transcript["gene_id"])
+        variants_in_transcript = lookups.get_variants_in_transcript(db, transcript_id)
+        cnvs_in_transcript = lookups.get_exons_cnvs(db, transcript_id)
+        cnvs_per_gene = lookups.get_cnvs(db, transcript["gene_id"])
+        coverage_stats = lookups.get_coverage_for_transcript(
+            db,
+            transcript["xstart"] - EXON_PADDING,
+            transcript["xstop"] + EXON_PADDING,
+        )
 
-            add_transcript_coordinate_to_variants(
-                db, variants_in_transcript, transcript_id
-            )
+        add_transcript_coordinate_to_variants(db, variants_in_transcript, transcript_id)
 
-            t = render_template(
-                "transcript.html",
+        t = templates.TemplateResponse(
+            request=request,
+            name="transcript.html",
+            context=dict(
                 transcript=transcript,
                 transcript_json=json.dumps(transcript),
                 variants_in_transcript=variants_in_transcript,
@@ -874,134 +916,149 @@ def transcript_page(transcript_id):
                 cnvs_json=json.dumps(cnvs_in_transcript),
                 cnvgenes=cnvs_per_gene,
                 cnvgenes_json=json.dumps(cnvs_per_gene),
-            )
-            cache.set(cache_key, t, timeout=1000 * 60)
-        print("Rendering transcript: %s" % transcript_id)
+            ),
+        )
+
+        logger.info("Rendering transcript: %s" % transcript_id)
         return t
     except Exception:
-        print("Failed on transcript:", transcript_id, ";Error=", traceback.format_exc())
-        abort(404)
+        logger.info(
+            "Failed on transcript:", transcript_id, ";Error=", traceback.format_exc()
+        )
+        return Response(status_code=404)
 
 
-@app.route("/region/<region_id>")
-def region_page(region_id):
+@app.get("/region/<region_id>")
+def region_page(request: Request, region_id):
     db = get_db()
     try:
         region = region_id.split("-")
-        cache_key = "t-region-{}".format(region_id)
-        t = cache.get(cache_key)
-        if t is None:
-            chrom = region[0]
-            start = None
-            stop = None
-            if len(region) == 3:
-                chrom, start, stop = region
-                start = int(start)
-                stop = int(stop)
-            if start is None or stop - start > REGION_LIMIT or stop < start:
-                return render_template(
-                    "region.html",
+
+        chrom = region[0]
+        start = None
+        stop = None
+        if len(region) == 3:
+            chrom, start, stop = region
+            start = int(start)
+            stop = int(stop)
+        if start is None or stop - start > REGION_LIMIT or stop < start:
+            return templates.TemplateResponse(
+                request=request,
+                name="region.html",
+                context=dict(
                     genes_in_region=None,
                     variants_in_region=None,
                     chrom=chrom,
                     start=start,
                     stop=stop,
                     coverage=None,
-                )
-            if start == stop:
-                start -= 20
-                stop += 20
-            genes_in_region = lookups.get_genes_in_region(db, chrom, start, stop)
-            variants_in_region = lookups.get_variants_in_region(db, chrom, start, stop)
-            xstart = get_xpos(chrom, start)
-            xstop = get_xpos(chrom, stop)
-            coverage_array = lookups.get_coverage_for_bases(db, xstart, xstop)
-            t = render_template(
-                "region.html",
+                ),
+            )
+        if start == stop:
+            start -= 20
+            stop += 20
+        genes_in_region = lookups.get_genes_in_region(db, chrom, start, stop)
+        variants_in_region = lookups.get_variants_in_region(db, chrom, start, stop)
+        xstart = get_xpos(chrom, start)
+        xstop = get_xpos(chrom, stop)
+        coverage_array = lookups.get_coverage_for_bases(db, xstart, xstop)
+        t = templates.TemplateResponse(
+            request=request,
+            name="region.html",
+            context=dict(
                 genes_in_region=genes_in_region,
                 variants_in_region=variants_in_region,
                 chrom=chrom,
                 start=start,
                 stop=stop,
                 coverage=coverage_array,
-            )
-        print("Rendering region: %s" % region_id)
+            ),
+        )
+        logger.info("Rendering region: %s" % region_id)
         return t
     except Exception:
-        print("Failed on region:", region_id, ";Error=", traceback.format_exc())
-        abort(404)
+        logger.info("Failed on region:", region_id, ";Error=", traceback.format_exc())
+        return Response(status_code=404)
 
 
-@app.route("/dbsnp/<rsid>")
-def dbsnp_page(rsid):
+@app.get("/dbsnp/<rsid>")
+def dbsnp_page(request: Request, rsid):
     db = get_db()
     try:
         variants = lookups.get_variants_by_rsid(db, rsid)
         chrom = None
         start = None
         stop = None
-        print("Rendering rsid: %s" % rsid)
-        return render_template(
-            "region.html",
-            rsid=rsid,
-            variants_in_region=variants,
-            chrom=chrom,
-            start=start,
-            stop=stop,
-            coverage=None,
-            genes_in_region=None,
+        logger.info("Rendering rsid: %s" % rsid)
+        return templates.TemplateResponse(
+            request=request,
+            name="region.html",
+            context=dict(
+                rsid=rsid,
+                variants_in_region=variants,
+                chrom=chrom,
+                start=start,
+                stop=stop,
+                coverage=None,
+                genes_in_region=None,
+            ),
         )
     except Exception:
-        print("Failed on rsid:", rsid, ";Error=", traceback.format_exc())
-        abort(404)
+        logger.info("Failed on rsid:", rsid, ";Error=", traceback.format_exc())
+        return Response(status_code=404)
 
 
-@app.route("/not_found/<query>")
-@app.errorhandler(404)
-def not_found_page(query):
-    return render_template("not_found.html", query=query), 404
+@app.get("/not_found/<query>")
+def not_found_page(request: Request, query):
+    return templates.TemplateResponse(
+        request=request,
+        name="not_found.html",
+        status_code=404,
+        context=dict(query=query),
+    )
 
 
-@app.route("/error/<query>")
-@app.errorhandler(404)
-def error_page(query):
-    return render_template("error.html", query=query), 404
+@app.get("/error/<query>")
+def error_page(request: Request, query):
+    return templates.TemplateResponse(
+        request=request, name="error.html", status_code=404, context=dict(query=query)
+    )
 
 
-@app.route("/downloads")
-def downloads_page():
-    return render_template("downloads.html")
+@app.get("/downloads")
+def downloads_page(request: Request):
+    return templates.TemplateResponse(request=request, name="downloads.html")
 
 
-@app.route("/about")
-def about_page():
-    return render_template("about.html")
+@app.get("/about")
+def about_page(request: Request):
+    return templates.TemplateResponse(request=request, name="about.html")
 
 
-@app.route("/participants")
-def participants_page():
-    return render_template("about.html")
+@app.get("/participants")
+def participants_page(request: Request):
+    return templates.TemplateResponse(request=request, name="about.html")
 
 
-@app.route("/terms")
-def terms_page():
-    return render_template("terms.html")
+@app.get("/terms")
+def terms_page(request: Request):
+    return templates.TemplateResponse(request=request, name="terms.html")
 
 
-@app.route("/contact")
-def contact_page():
-    return render_template("contact.html")
+@app.get("/contact")
+def contact_page(request: Request):
+    return templates.TemplateResponse(request=request, name="contact.html")
 
 
-@app.route("/faq")
-def faq_page():
-    return render_template("faq.html")
+@app.get("/faq")
+def faq_page(request: Request):
+    return templates.TemplateResponse(request=request, name="faq.html")
 
 
-@app.route("/text")
-def text_page():
+@app.get("/text")
+def text_page(request: Request):
     db = get_db()
-    query = request.args.get("text")
+    query = request.get("text")
     datatype, identifier = lookups.get_awesomebar_result(db, query)
     if datatype in ["gene", "transcript"]:
         gene = lookups.get_gene(db, identifier)
@@ -1028,22 +1085,22 @@ http://omim.org/entry/%(omim_accession)s"""
 
 
 @app.route("/read_viz/<path:path>")
-def read_viz_files(path):
-    full_path = os.path.abspath(os.path.join(app.config["READ_VIZ_DIR"], path))
+def read_viz_files(request: Request, path):
+    full_path = os.path.abspath(os.path.join(settings.READ_VIZ_DIR, path))
 
     # security check - only files under READ_VIZ_DIR should be accsessible
-    if not full_path.startswith(app.config["READ_VIZ_DIR"]):
+    if not full_path.startswith(settings.READ_VIZ_DIR):
         return "Invalid path: %s" % path
 
     # handle igv.js Range header which it uses to request a subset of a .bam
     range_header = request.headers.get("Range", None)
     if not range_header:
-        return send_from_directory(app.config["READ_VIZ_DIR"], path)
+        return send_from_directory(settings.READ_VIZ_DIR, path)
 
-    m = re.search("(\d+)-(\d*)", range_header)
+    m = re.search(r"(\d+)-(\d*)", range_header)
     if not m:
         error_msg = "ERROR: unexpected range header syntax: %s" % range_header
-        logging.error(error_msg)
+        logger.error(error_msg)
         return error_msg
 
     size = os.path.getsize(full_path)
@@ -1056,17 +1113,17 @@ def read_viz_files(path):
         data = f.read(length)
 
     rv = Response(
-        data, 206, mimetype="application/octet-stream", direct_passthrough=True
+        data, 206, media_type="application/octet-stream", direct_passthrough=True
     )
     rv.headers.add(
         "Content-Range", "bytes {0}-{1}/{2}".format(offset, offset + length - 1, size)
     )
 
-    logging.info(
+    logger.info(
         "readviz: range request: %s-%s %s" % (m.group(1), m.group(2), full_path)
     )
     return rv
 
 
 if __name__ == "__main__":
-    app.run()
+    uvicorn.run("exac:app", host="0.0.0.0", port=8000, reload=True)

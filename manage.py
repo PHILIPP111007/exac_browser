@@ -1,8 +1,7 @@
-from flask_script import Manager
-from exac import app
 import exac
+import typer
 
-manager = Manager(app)
+manager = typer.Typer()
 
 
 @manager.command
@@ -78,4 +77,4 @@ def precalculate_metrics():
 
 
 if __name__ == "__main__":
-    manager.run()
+    manager()
