@@ -55,6 +55,8 @@ from utils import (
     order_vep_by_csq,
     get_xpos,
 )
+
+from fastapi_globals import g
 #######################################################################
 #######################################################################
 
@@ -668,9 +670,8 @@ def awesome_autocomplete(request: Request, query):
 
 
 @app.get("/awesome/")
-def awesome(request: Request):
+def awesome(request: Request, query: str):
     db = get_db()
-    query = request.get("query")
     datatype, identifier = lookups.get_awesomebar_result(db, query)
 
     logger.info("Searched for %s: %s" % (datatype, identifier))
@@ -1056,9 +1057,8 @@ def faq_page(request: Request):
 
 
 @app.get("/text/")
-def text_page(request: Request):
+def text_page(request: Request, query: str):
     db = get_db()
-    query = request.get("text")
     datatype, identifier = lookups.get_awesomebar_result(db, query)
     if datatype in ["gene", "transcript"]:
         gene = lookups.get_gene(db, identifier)
