@@ -1,5 +1,10 @@
 import re
-from utils import *
+
+from utils import (
+    AF_BUCKETS,
+    add_consequence_to_variant,
+    get_xpos,
+)
 
 SEARCH_LIMIT = 10000
 
