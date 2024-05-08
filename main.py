@@ -29,7 +29,7 @@ from modules.utils import (
 
 
 app = FastAPI(
-    title="EXAC Browser",
+    title="ExAC Browser",
     description="Description",
     version="0.0.1",
     terms_of_service=None,
@@ -50,7 +50,7 @@ def homepage(request: Request):
     return templates.TemplateResponse(request=request, name="homepage.html")
 
 
-@app.get("/autocomplete/<query>")
+@app.get("/autocomplete/{query}/")
 def awesome_autocomplete(request: Request, query):
     if not hasattr(g, "autocomplete_strings"):
         g.autocomplete_strings = [
@@ -89,7 +89,7 @@ def awesome(request: Request, query: str):
         raise Exception
 
 
-@app.get("/variant/<variant_str>/", response_class=HTMLResponse)
+@app.get("/variant/{variant_str}/", response_class=HTMLResponse)
 def variant_page(request: Request, variant_str: str):
     db = get_db()
     try:
@@ -222,7 +222,7 @@ def variant_page(request: Request, variant_str: str):
         return Response(status_code=404)
 
 
-@app.get("/gene/<gene_id>/")
+@app.get("/gene/{gene_id}/")
 def gene_page(request: Request, gene_id: str):
     if gene_id in settings.GENES_TO_CACHE:
         return open(
@@ -232,8 +232,8 @@ def gene_page(request: Request, gene_id: str):
         return get_gene_page_content(request, gene_id)
 
 
-@app.get("/transcript/<transcript_id>/")
-def transcript_page(request: Request, transcript_id):
+@app.get("/transcript/{transcript_id}/", response_class=HTMLResponse)
+def transcript_page(request: Request, transcript_id: str):
     db = get_db()
     try:
         transcript = lookups.get_transcript(db, transcript_id)
@@ -279,8 +279,8 @@ def transcript_page(request: Request, transcript_id):
         return Response(status_code=404)
 
 
-@app.get("/region/<region_id>/")
-def region_page(request: Request, region_id):
+@app.get("/region/{region_id}/")
+def region_page(request: Request, region_id: str):
     db = get_db()
     try:
         region = region_id.split("-")
@@ -332,7 +332,7 @@ def region_page(request: Request, region_id):
         return Response(status_code=404)
 
 
-@app.get("/dbsnp/<rsid>/")
+@app.get("/dbsnp/{rsid}/")
 def dbsnp_page(request: Request, rsid):
     db = get_db()
     try:
@@ -359,7 +359,7 @@ def dbsnp_page(request: Request, rsid):
         return Response(status_code=404)
 
 
-@app.get("/not_found/<query>/")
+@app.get("/not_found/{query}/")
 def not_found_page(request: Request, query):
     return templates.TemplateResponse(
         request=request,
@@ -369,7 +369,7 @@ def not_found_page(request: Request, query):
     )
 
 
-@app.get("/error/<query>/")
+@app.get("/error/{query}/")
 def error_page(request: Request, query):
     return templates.TemplateResponse(
         request=request, name="error.html", status_code=404, context=dict(query=query)
@@ -434,7 +434,7 @@ http://omim.org/entry/%(omim_accession)s"""
         return "Search types other than gene transcript not yet supported"
 
 
-@app.get("/read_viz/<path:path>/")
+@app.get("/read_viz/{path:path}/")
 def read_viz_files(request: Request, path):
     full_path = os.path.abspath(os.path.join(settings.READ_VIZ_DIR, path))
 
