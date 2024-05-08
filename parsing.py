@@ -91,7 +91,7 @@ def get_variants_from_sites_vcf(sites_vcf):
             info_field = dict(
                 [
                     (x.split("=", 1)) if "=" in x else (x, x)
-                    for x in re.split(";(?=\w)", fields[7])
+                    for x in re.split(r";(?=\w)", fields[7])
                 ]
             )
             consequence_array = (
