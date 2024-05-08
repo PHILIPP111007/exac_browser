@@ -1,6 +1,5 @@
 # Usage
 
-
 *If you would like to use the ExAC browser, the most recent stable version is hosted at <http://exac.broadinstitute.org>*
 
 Advanced: The following instructions are useful for cloning the browser (e.g. to load custom sites/coverage data).
