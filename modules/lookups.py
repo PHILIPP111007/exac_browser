@@ -1,5 +1,7 @@
 import re
 
+from modules.settings import settings
+from modules.utils import METRICS
 from modules.utils import (
     AF_BUCKETS,
     add_consequence_to_variant,
@@ -7,8 +9,6 @@ from modules.utils import (
     xpos_to_pos,
     add_consequence_to_variants,
 )
-from modules.settings import settings
-from modules.utils import METRICS
 
 
 def get_gene(db, gene_id):

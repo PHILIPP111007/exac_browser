@@ -1,20 +1,23 @@
-import modules.lookups as lookups
-import sqlite3
-import traceback
-
-# NEW #################################################################
-#######################################################################
 import os
 from pathlib import Path
 import re
-from collections import OrderedDict
 import json
+import traceback
+from collections import OrderedDict
+import sqlite3
 
 import uvicorn
 from fastapi import FastAPI, Request, Response
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 
+from modules.fastapi_globals import g
+from modules.logger import logger
+from modules.settings import settings
+from modules.db import get_db
+from modules.commands import get_gene_page_content
+from modules.templates import templates
+from modules import lookups
 from modules.utils import (
     add_transcript_coordinate_to_variants,
     add_consequence_to_variant,
@@ -23,16 +26,6 @@ from modules.utils import (
     order_vep_by_csq,
     get_xpos,
 )
-
-from modules.fastapi_globals import g
-from modules.logger import logger
-from modules.settings import settings
-from modules.db import get_db
-from modules.commands import get_gene_page_content
-from modules.templates import templates
-
-#######################################################################
-#######################################################################
 
 
 app = FastAPI(

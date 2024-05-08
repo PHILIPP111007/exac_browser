@@ -4,7 +4,9 @@ Utils for reading flat files that are loaded into database
 
 import re
 import traceback
+
 from modules.utils import METRICS, get_xpos, get_minimal_representation
+
 
 POPS = {
     "AFR": "African",

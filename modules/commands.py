@@ -1,27 +1,23 @@
-import pysam
-
-import modules.lookups as lookups
-
-
-from multiprocessing import Process
-import traceback
-
-
-# NEW #################################################################
-#######################################################################
 import os
 import sys
 import time
+import gzip
 import random
 import itertools
+import traceback
 from collections import defaultdict
-import gzip
-
-from fastapi import Request, Response
+from multiprocessing import Process
 
 import numpy
 import pymongo
+import pysam
+from fastapi import Request, Response
 
+from modules.logger import logger
+from modules.settings import settings
+from modules.db import get_db
+from modules.templates import templates
+from modules import lookups
 from modules.parsing import (
     get_base_coverage_from_file,
     get_variants_from_sites_vcf,
@@ -37,15 +33,7 @@ from modules.parsing import (
     get_dbnsfp_info,
     get_snp_from_dbsnp_file,
 )
-from modules.utils import (
-    AF_BUCKETS,
-    add_transcript_coordinate_to_variants,
-)
-
-from modules.logger import logger
-from modules.settings import settings
-from modules.db import get_db
-from modules.templates import templates
+from modules.utils import AF_BUCKETS, add_transcript_coordinate_to_variants
 
 
 def load_db():

@@ -1,5 +1,6 @@
 from operator import itemgetter
 
+
 AF_BUCKETS = [
     0.0001,
     0.0002,
