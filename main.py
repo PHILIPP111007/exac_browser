@@ -214,7 +214,7 @@ def variant_page(request: Request, variant_str: str):
                 read_viz=read_viz_dict,
             ),
         )
-    except Exception as e:
+    except Exception:
         logger.error(f"Failed on variant: {variant_str}")
         return Response(status_code=404)
 
