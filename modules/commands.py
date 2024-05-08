@@ -10,6 +10,7 @@ from multiprocessing import Process
 
 import numpy
 import pymongo
+from pymongo.database import Database
 import pysam
 from fastapi import Request, Response
 
@@ -209,7 +210,7 @@ def precalculate_metrics():
 def load_dbsnp_file():
     db = get_db()
 
-    def load_dbsnp(dbsnp_file, i, n, db):
+    def load_dbsnp(dbsnp_file, i, n, db: Database):
         if os.path.isfile(dbsnp_file + ".tbi"):
             dbsnp_record_generator = parse_tabix_file_subset(
                 [dbsnp_file], i, n, get_snp_from_dbsnp_file
@@ -343,7 +344,7 @@ def parse_tabix_file_subset(tabix_filenames, subset_i, subset_n, record_parser):
 
 
 def load_base_coverage():
-    def load_coverage(coverage_files, i, n, db):
+    def load_coverage(coverage_files, i, n, db: Database):
         coverage_generator = parse_tabix_file_subset(
             coverage_files, i, n, get_base_coverage_from_file
         )
@@ -372,12 +373,12 @@ def load_base_coverage():
 
 
 def load_variants_file():
-    def load_variants(sites_file, i, n, db):
+    def load_variants(sites_file, i, n, db: Database):
         variants_generator = parse_tabix_file_subset(
             [sites_file], i, n, get_variants_from_sites_vcf
         )
         try:
-            db.variants.insert(variants_generator, w=0)
+            db.variants.insert_many(variants_generator)
         except pymongo.errors.InvalidOperation:
             pass  # handle error when variant_generator is empty
 
