@@ -6,11 +6,10 @@ import random
 import itertools
 import traceback
 from collections import defaultdict
-from multiprocessing import Process
+import multiprocessing
 
 import numpy
 import pymongo
-from pymongo.database import Database
 import pysam
 from fastapi import Request, Response
 
@@ -195,38 +194,43 @@ def precalculate_metrics():
         edges = hist[1]
         # mids = [(edges[i]+edges[i+1])/2 for i in range(len(edges)-1)]
         lefts = [edges[i] for i in range(len(edges) - 1)]
-        db.metrics.insert({"metric": metric, "mids": lefts, "hist": list(hist[0])})
+        db.metrics.insert_one({"metric": metric, "mids": lefts, "hist": list(hist[0])})
     for metric in binned_metrics:
         hist = numpy.histogram(map(numpy.log, binned_metrics[metric]), bins=40)
         edges = hist[1]
         mids = [(edges[i] + edges[i + 1]) / 2 for i in range(len(edges) - 1)]
-        db.metrics.insert(
+        db.metrics.insert_one(
             {"metric": "binned_%s" % metric, "mids": mids, "hist": list(hist[0])}
         )
     db.metrics.create_index("metric")
     logger.info("Done pre-calculating metrics!")
 
 
-def load_dbsnp_file():
+def _load_dbsnp(dbsnp_file, i, n):
+    """inside the worker function a client must be initialized for multiprocessing"""
     db = get_db()
 
-    def load_dbsnp(dbsnp_file, i, n, db: Database):
-        if os.path.isfile(dbsnp_file + ".tbi"):
-            dbsnp_record_generator = parse_tabix_file_subset(
-                [dbsnp_file], i, n, get_snp_from_dbsnp_file
-            )
-            try:
-                db.dbsnp.insert(dbsnp_record_generator, w=0)
-            except pymongo.errors.InvalidOperation:
-                pass  # handle error when coverage_generator is empty
+    if os.path.isfile(dbsnp_file + ".tbi"):
+        dbsnp_record_generator = parse_tabix_file_subset(
+            [dbsnp_file], i, n, get_snp_from_dbsnp_file
+        )
+        try:
+            db.dbsnp.insert_many(dbsnp_record_generator)
+        except pymongo.errors.InvalidOperation:
+            pass  # handle error when coverage_generator is empty
 
-        else:
-            with gzip.open(dbsnp_file) as f:
-                db.dbsnp.insert((snp for snp in get_snp_from_dbsnp_file(f)), w=0)
+    else:
+        with gzip.open(dbsnp_file) as f:
+            db.dbsnp.insert_many([snp for snp in get_snp_from_dbsnp_file(f)])
+
+
+def load_dbsnp_file():
+    db = get_db()
 
     db.dbsnp.drop()
     db.dbsnp.create_index("rsid")
     db.dbsnp.create_index("xpos")
+
     start_time = time.time()
     dbsnp_file = settings.DBSNP_FILE
 
@@ -250,18 +254,21 @@ def load_dbsnp_file():
         else:
             raise Exception("dbsnp file %s(dbsnp_file)s not found." % locals())
 
-    procs = []
-    for i in range(num_procs):
-        p = Process(target=load_dbsnp, args=(dbsnp_file, i, num_procs, db))
-        p.start()
-        procs.append(p)
+    with multiprocessing.Pool() as pool:
+        pool.starmap(
+            _load_dbsnp,
+            [(dbsnp_file, i, num_procs) for i in range(num_procs)],
+        )
+        pool.close()
+        pool.join()
 
-    return procs
-    # logger.info 'Done loading dbSNP. Took %s seconds' % int(time.time() - start_time)
+    logger.info("Done loading dbSNP. Took %s seconds" % int(time.time() - start_time))
 
-    # start_time = time.time()
-    # db.dbsnp.create_index('rsid')
-    # logger.info 'Done indexing dbSNP table. Took %s seconds' % int(time.time() - start_time)
+    start_time = time.time()
+    db.dbsnp.create_index("rsid")
+    logger.info(
+        "Done indexing dbSNP table. Took %s seconds" % int(time.time() - start_time)
+    )
 
 
 def drop_cnv_genes():
@@ -275,7 +282,7 @@ def load_cnv_genes():
     start_time = time.time()
     with open(settings.CNV_GENE_FILE) as cnv_gene_file:
         for cnvgene in get_cnvs_per_gene(cnv_gene_file):
-            db.cnvgenes.insert(cnvgene, w=0)
+            db.cnvgenes.insert_one(cnvgene)
             # progress.update(gtf_file.fileobj.tell())
         # progress.finish()
 
@@ -343,45 +350,56 @@ def parse_tabix_file_subset(tabix_filenames, subset_i, subset_n, record_parser):
     )
 
 
-def load_base_coverage():
-    def load_coverage(coverage_files, i, n, db: Database):
-        coverage_generator = parse_tabix_file_subset(
-            coverage_files, i, n, get_base_coverage_from_file
-        )
-        try:
-            db.base_coverage.insert(coverage_generator, w=0)
-        except pymongo.errors.InvalidOperation:
-            pass  # handle error when coverage_generator is empty
+def _load_coverage(coverage_files, i, n):
+    """inside the worker function a client must be initialized for multiprocessing"""
+    db = get_db()
+    coverage_generator = parse_tabix_file_subset(
+        coverage_files, i, n, get_base_coverage_from_file
+    )
+    try:
+        db.base_coverage.insert_many(coverage_generator)
+    except pymongo.errors.InvalidOperation:
+        pass  # handle error when coverage_generator is empty
 
+
+def load_base_coverage():
     db = get_db()
     db.base_coverage.drop()
     logger.info("Dropped db.base_coverage")
     # load coverage first; variant info will depend on coverage
     db.base_coverage.create_index("xpos")
 
-    procs = []
+    start_time = time.time()
+
     coverage_files = settings.BASE_COVERAGE_FILES
     num_procs = settings.LOAD_DB_PARALLEL_PROCESSES
     random.shuffle(settings.BASE_COVERAGE_FILES)
-    for i in range(num_procs):
-        p = Process(target=load_coverage, args=(coverage_files, i, num_procs, db))
-        p.start()
-        procs.append(p)
-    return procs
+    with multiprocessing.Pool() as pool:
+        pool.starmap(
+            _load_coverage,
+            [(coverage_files, i, num_procs) for i in range(num_procs)],
+        )
+        pool.close()
+        pool.join()
 
-    # logger.info 'Done loading coverage. Took %s seconds' % int(time.time() - start_time)
+    logger.info(
+        "Done loading coverage. Took %s seconds" % int(time.time() - start_time)
+    )
+
+
+def _load_variants(sites_file, i, n):
+    """inside the worker function a client must be initialized for multiprocessing"""
+    db = get_db()
+    variants_generator = parse_tabix_file_subset(
+        [sites_file], i, n, get_variants_from_sites_vcf
+    )
+    try:
+        db.variants.insert_many(variants_generator)
+    except pymongo.errors.InvalidOperation:
+        pass  # TODO: handle error when variant_generator is empty
 
 
 def load_variants_file():
-    def load_variants(sites_file, i, n, db: Database):
-        variants_generator = parse_tabix_file_subset(
-            [sites_file], i, n, get_variants_from_sites_vcf
-        )
-        try:
-            db.variants.insert_many(variants_generator)
-        except pymongo.errors.InvalidOperation:
-            pass  # handle error when variant_generator is empty
-
     db = get_db()
     db.variants.drop()
     logger.info("Dropped db.variants")
@@ -400,8 +418,20 @@ def load_variants_file():
     elif len(sites_vcfs) > 1:
         raise Exception("More than one sites vcf file found: %s" % sites_vcfs)
 
+    start_time = time.time()
+
     num_procs = settings.LOAD_DB_PARALLEL_PROCESSES
-    load_variants(sites_vcfs[0], 0, num_procs, db)
+    with multiprocessing.Pool() as pool:
+        pool.starmap(
+            _load_variants,
+            [(sites_vcfs[0], i, num_procs) for i in range(num_procs)],
+        )
+        pool.close()
+        pool.join()
+
+    logger.info(
+        "Done loading variants. Took %s seconds" % int(time.time() - start_time)
+    )
 
 
 def load_constraint_information():
@@ -414,7 +444,7 @@ def load_constraint_information():
 
     with gzip.open(settings.CONSTRAINT_FILE) as constraint_file:
         for transcript in get_constraint_information(constraint_file):
-            db.constraint.insert(transcript, w=0)
+            db.constraint.insert_one(transcript)
 
     db.constraint.create_index("transcript")
     logger.info(
@@ -503,7 +533,7 @@ def load_gene_models():
             if gene_id in dbnsfp_info:
                 gene["full_gene_name"] = dbnsfp_info[gene_id][0]
                 gene["other_names"] = dbnsfp_info[gene_id][1]
-            db.genes.insert(gene, w=0)
+            db.genes.insert_one(gene)
 
     logger.info("Done loading genes. Took %s seconds" % int(time.time() - start_time))
 
@@ -521,9 +551,8 @@ def load_gene_models():
     # and now transcripts
     start_time = time.time()
     with gzip.open(settings.GENCODE_GTF) as gtf_file:
-        db.transcripts.insert(
-            (transcript for transcript in get_transcripts_from_gencode_gtf(gtf_file)),
-            w=0,
+        db.transcripts.insert_many(
+            [transcript for transcript in get_transcripts_from_gencode_gtf(gtf_file)],
         )
     logger.info(
         "Done loading transcripts. Took %s seconds" % int(time.time() - start_time)
@@ -540,7 +569,7 @@ def load_gene_models():
     # Building up gene definitions
     start_time = time.time()
     with gzip.open(settings.GENCODE_GTF) as gtf_file:
-        db.exons.insert((exon for exon in get_exons_from_gencode_gtf(gtf_file)), w=0)
+        db.exons.insert_many([exon for exon in get_exons_from_gencode_gtf(gtf_file)])
     logger.info("Done loading exons. Took %s seconds" % int(time.time() - start_time))
 
     start_time = time.time()
@@ -550,8 +579,6 @@ def load_gene_models():
     logger.info(
         "Done indexing exon table. Took %s seconds" % int(time.time() - start_time)
     )
-
-    return []
 
 
 def load_cnv_models():
@@ -563,7 +590,7 @@ def load_cnv_models():
     start_time = time.time()
     with open(settings.CNV_FILE) as cnv_txt_file:
         for cnv in get_cnvs_from_txt(cnv_txt_file):
-            db.cnvs.insert(cnv, w=0)
+            db.cnvs.insert_one(cnv)
             # progress.update(gtf_file.fileobj.tell())
         # progress.finish()
 
