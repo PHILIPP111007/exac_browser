@@ -36,6 +36,7 @@ In a separate tab, start the mongo database server:
 
 ```sh
 mongod --dbpath database
+# mongod --port 27017 --dbpath ./database --replSet myreplicaset
 ```
 
 This local server needs to be running at all times when you are working on the site.
@@ -91,9 +92,9 @@ python main.py
 
 And visit on your browser:
 
-    http://localhost:5000
-    http://localhost:5000/gene/ENSG00000237683
-    http://localhost:5000/variant/20-76735-A-T
+    http://localhost:8000
+    http://localhost:8000/gene/ENSG00000237683
+    http://localhost:8000/variant/20-76735-A-T
 
 For testing, you can open up an interactive shell with:
 
