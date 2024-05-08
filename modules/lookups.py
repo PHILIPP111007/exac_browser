@@ -1,12 +1,14 @@
 import re
 
-from utils import (
+from modules.utils import (
     AF_BUCKETS,
     add_consequence_to_variant,
     get_xpos,
+    xpos_to_pos,
+    add_consequence_to_variants,
 )
-
-SEARCH_LIMIT = 10000
+from modules.settings import settings
+from modules.utils import METRICS
 
 
 def get_gene(db, gene_id):
@@ -144,7 +146,7 @@ def get_awesomebar_suggestions(g, query):
     query is the string that user types
     If it is the prefix for a gene, return list of gene names
     """
-    regex = re.compile("^" + re.escape(query), re.IGNORECASE)
+    regex = re.compile(r"^" + re.escape(query), re.IGNORECASE)
     results = [r for r in g.autocomplete_strings if regex.match(r)][:20]
     return results
 
@@ -270,7 +272,7 @@ def get_variants_in_region(db, chrom, start, stop):
         db.variants.find(
             {"xpos": {"$lte": xstop, "$gte": xstart}},
             fields={"_id": False},
-            limit=SEARCH_LIMIT,
+            limit=settings.SEARCH_LIMIT,
         )
     )
     add_consequence_to_variants(variants)

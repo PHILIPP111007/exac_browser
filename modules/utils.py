@@ -54,7 +54,7 @@ def add_transcript_coordinate_to_variants(db, variant_list, transcript_id):
     Edits variant_list in place; no return val
     """
 
-    import lookups
+    import modules.lookups as lookups
 
     # make sure exons is sorted by (start, end)
     exons = sorted(

@@ -38,13 +38,8 @@ the value was already used any thus have a value of `None` set already, which
 would result in the default value not being used.
 """
 
-from collections.abc import Awaitable, Callable
-from contextvars import ContextVar, copy_context
+from contextvars import ContextVar
 from typing import Any
-
-from fastapi import Request, Response
-from starlette.middleware.base import BaseHTTPMiddleware
-from starlette.types import ASGIApp
 
 
 class Globals:
