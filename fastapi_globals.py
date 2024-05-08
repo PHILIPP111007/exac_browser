@@ -101,25 +101,4 @@ class Globals:
         self._vars[name].set(value)
 
 
-async def globals_middleware_dispatch(
-    request: Request,
-    call_next: Callable,
-) -> Response:
-    """Dispatch the request in a new context to allow globals to be used."""
-
-    ctx = copy_context()
-
-    def _call_next() -> Awaitable[Response]:
-        return call_next(request)
-
-    return await ctx.run(_call_next)
-
-
-class GlobalsMiddleware(BaseHTTPMiddleware):  # noqa
-    """Middleware to setup the globals context using globals_middleware_dispatch()."""
-
-    def __init__(self, app: ASGIApp) -> None:
-        super().__init__(app, globals_middleware_dispatch)
-
-
 g = Globals()
