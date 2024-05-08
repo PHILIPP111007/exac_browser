@@ -2,7 +2,6 @@ import os
 from pathlib import Path
 import re
 import json
-import traceback
 from collections import OrderedDict
 import sqlite3
 
@@ -215,10 +214,8 @@ def variant_page(request: Request, variant_str: str):
                 read_viz=read_viz_dict,
             ),
         )
-    except Exception:
-        logger.info(
-            "Failed on variant:", variant_str, ";Error=", traceback.format_exc()
-        )
+    except Exception as e:
+        logger.error(f"Failed on variant: {variant_str}")
         return Response(status_code=404)
 
 
@@ -273,9 +270,7 @@ def transcript_page(request: Request, transcript_id: str):
         logger.info("Rendering transcript: %s" % transcript_id)
         return t
     except Exception:
-        logger.info(
-            "Failed on transcript:", transcript_id, ";Error=", traceback.format_exc()
-        )
+        logger.error(f"Failed on transcript: {transcript_id}")
         return Response(status_code=404)
 
 
@@ -328,7 +323,7 @@ def region_page(request: Request, region_id: str):
         logger.info("Rendering region: %s" % region_id)
         return t
     except Exception:
-        logger.info("Failed on region:", region_id, ";Error=", traceback.format_exc())
+        logger.error(f"Failed on region: {region_id}")
         return Response(status_code=404)
 
 
@@ -355,7 +350,7 @@ def dbsnp_page(request: Request, rsid):
             ),
         )
     except Exception:
-        logger.info("Failed on rsid:", rsid, ";Error=", traceback.format_exc())
+        logger.error(f"Failed on rsid: {rsid}")
         return Response(status_code=404)
 
 
@@ -476,4 +471,10 @@ def read_viz_files(request: Request, path):
 
 
 if __name__ == "__main__":
-    uvicorn.run(app=settings.APP, host=settings.HOST, port=settings.PORT, reload=True)
+    uvicorn.run(
+        app=settings.APP,
+        host=settings.HOST,
+        port=settings.PORT,
+        reload=True,
+        use_colors=True,
+    )

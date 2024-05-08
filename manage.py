@@ -1,12 +1,14 @@
-from modules import commands
 import typer
+
+from modules.logger import logger
+from modules import commands
 
 manager = typer.Typer()
 
 
 @manager.command("hello")
 def hello():
-    print("hello")
+    logger.info("hello")
 
 
 @manager.command("load_db")

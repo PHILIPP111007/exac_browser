@@ -1,5 +1,8 @@
-import pymongo
 import sys
+
+import pymongo
+
+from modules.logger import logger
 
 num_genes = int(sys.argv[1])
 db = pymongo.Connection().exac
@@ -10,4 +13,4 @@ for gene in db.genes.find():
     tuples.append((gene_id, num_variants))
 tuples = sorted(tuples, key=lambda x: x[1], reverse=True)
 for gene_id, num_variants in tuples[:num_genes]:
-    print(gene_id)
+    logger.info(gene_id)

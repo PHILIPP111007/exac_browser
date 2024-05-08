@@ -5,6 +5,7 @@ Utils for reading flat files that are loaded into database
 import re
 import traceback
 
+from modules.logger import logger
 from modules.utils import METRICS, get_xpos, get_minimal_representation
 
 
@@ -217,7 +218,7 @@ def get_variants_from_sites_vcf(sites_vcf):
 
                 yield variant
         except Exception:
-            print("Error parsing vcf line: " + line)
+            logger.info("Error parsing vcf line: " + line)
             traceback.print_exc()
             break
 

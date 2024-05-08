@@ -8,7 +8,7 @@ def _get_logger():
     logger = logging.getLogger("uvicorn.access")
     logger.setLevel(logging.DEBUG)
     console_formatter = uvicorn.logging.ColourizedFormatter(
-        "{asctime} {levelprefix} {message}", style="{", use_colors=True
+        "{levelprefix} {message}", style="{", use_colors=True
     )
     stream_handler = logging.StreamHandler(sys.stdout)
     logger.addHandler(stream_handler)

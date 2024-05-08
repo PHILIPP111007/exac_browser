@@ -1,6 +1,7 @@
 import re
 
 from modules.settings import settings
+from modules.logger import logger
 from modules.utils import METRICS
 from modules.utils import (
     AF_BUCKETS,
@@ -184,7 +185,7 @@ def get_awesomebar_result(db, query):
 
     """
     query = query.strip()
-    print("Query: %s" % query)
+    logger.info("Query: %s" % query)
 
     # Variant
     variant = get_variants_by_rsid(db, query.lower())
