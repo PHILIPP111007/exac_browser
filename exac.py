@@ -20,12 +20,12 @@ import itertools
 from collections import defaultdict, OrderedDict
 import json
 import gzip
+import logging
 
 import uvicorn
 from fastapi import FastAPI, Request, Response
 from fastapi.responses import HTMLResponse, RedirectResponse
 from pydantic_settings import BaseSettings
-from fastapi.logger import logger
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
@@ -57,8 +57,18 @@ from utils import (
 )
 
 from fastapi_globals import g
+
 #######################################################################
 #######################################################################
+
+logger = logging.getLogger("uvicorn.access")
+logger.setLevel(logging.DEBUG)
+console_formatter = uvicorn.logging.ColourizedFormatter(
+    "{asctime} {levelprefix} {message}", style="{", use_colors=True
+)
+stream_handler = logging.StreamHandler(sys.stdout)
+logger.addHandler(stream_handler)
+logger.handlers[0].setFormatter(console_formatter)
 
 
 EXAC_FILES_DIRECTORY = "/Users/phil/Downloads/exac_data"
@@ -216,7 +226,7 @@ def load_base_coverage():
     db.base_coverage.drop()
     logger.info("Dropped db.base_coverage")
     # load coverage first; variant info will depend on coverage
-    db.base_coverage.ensure_index("xpos")
+    db.base_coverage.create_index("xpos")
 
     procs = []
     coverage_files = settings.BASE_COVERAGE_FILES
@@ -246,12 +256,12 @@ def load_variants_file():
     logger.info("Dropped db.variants")
 
     # grab variants from sites VCF
-    db.variants.ensure_index("xpos")
-    db.variants.ensure_index("xstart")
-    db.variants.ensure_index("xstop")
-    db.variants.ensure_index("rsid")
-    db.variants.ensure_index("genes")
-    db.variants.ensure_index("transcripts")
+    db.variants.create_index("xpos")
+    db.variants.create_index("xstart")
+    db.variants.create_index("xstop")
+    db.variants.create_index("rsid")
+    db.variants.create_index("genes")
+    db.variants.create_index("transcripts")
 
     sites_vcfs = settings.SITES_VCFS
     if len(sites_vcfs) == 0:
@@ -275,7 +285,7 @@ def load_constraint_information():
         for transcript in get_constraint_information(constraint_file):
             db.constraint.insert(transcript, w=0)
 
-    db.constraint.ensure_index("transcript")
+    db.constraint.create_index("transcript")
     logger.info(
         "Done loading constraint info. Took %s seconds" % int(time.time() - start_time)
     )
@@ -285,7 +295,7 @@ def load_mnps():
     db = get_db()
     start_time = time.time()
 
-    db.variants.ensure_index("has_mnp")
+    db.variants.create_index("has_mnp")
     logger.info("Done indexing.")
     while db.variants.find_and_modify(
         {"has_mnp": True}, {"$unset": {"has_mnp": "", "mnps": ""}}
@@ -304,7 +314,7 @@ def load_mnps():
                 w=0,
             )
 
-    db.variants.ensure_index("has_mnp")
+    db.variants.create_index("has_mnp")
     logger.info(
         "Done loading MNP info. Took %s seconds" % int(time.time() - start_time)
     )
@@ -367,12 +377,12 @@ def load_gene_models():
     logger.info("Done loading genes. Took %s seconds" % int(time.time() - start_time))
 
     start_time = time.time()
-    db.genes.ensure_index("gene_id")
-    db.genes.ensure_index("gene_name_upper")
-    db.genes.ensure_index("gene_name")
-    db.genes.ensure_index("other_names")
-    db.genes.ensure_index("xstart")
-    db.genes.ensure_index("xstop")
+    db.genes.create_index("gene_id")
+    db.genes.create_index("gene_name_upper")
+    db.genes.create_index("gene_name")
+    db.genes.create_index("other_names")
+    db.genes.create_index("xstart")
+    db.genes.create_index("xstop")
     logger.info(
         "Done indexing gene table. Took %s seconds" % int(time.time() - start_time)
     )
@@ -389,8 +399,8 @@ def load_gene_models():
     )
 
     start_time = time.time()
-    db.transcripts.ensure_index("transcript_id")
-    db.transcripts.ensure_index("gene_id")
+    db.transcripts.create_index("transcript_id")
+    db.transcripts.create_index("gene_id")
     logger.info(
         "Done indexing transcript table. Took %s seconds"
         % int(time.time() - start_time)
@@ -403,9 +413,9 @@ def load_gene_models():
     logger.info("Done loading exons. Took %s seconds" % int(time.time() - start_time))
 
     start_time = time.time()
-    db.exons.ensure_index("exon_id")
-    db.exons.ensure_index("transcript_id")
-    db.exons.ensure_index("gene_id")
+    db.exons.create_index("exon_id")
+    db.exons.create_index("transcript_id")
+    db.exons.create_index("gene_id")
     logger.info(
         "Done indexing exon table. Took %s seconds" % int(time.time() - start_time)
     )
@@ -467,8 +477,8 @@ def load_dbsnp_file():
                 db.dbsnp.insert((snp for snp in get_snp_from_dbsnp_file(f)), w=0)
 
     db.dbsnp.drop()
-    db.dbsnp.ensure_index("rsid")
-    db.dbsnp.ensure_index("xpos")
+    db.dbsnp.create_index("rsid")
+    db.dbsnp.create_index("xpos")
     start_time = time.time()
     dbsnp_file = settings.DBSNP_FILE
 
@@ -502,7 +512,7 @@ def load_dbsnp_file():
     # logger.info 'Done loading dbSNP. Took %s seconds' % int(time.time() - start_time)
 
     # start_time = time.time()
-    # db.dbsnp.ensure_index('rsid')
+    # db.dbsnp.create_index('rsid')
     # logger.info 'Done indexing dbSNP table. Took %s seconds' % int(time.time() - start_time)
 
 
@@ -572,14 +582,12 @@ def create_cache():
 
 def precalculate_metrics():
     db = get_db()
-    logger.info("Reading %s variants..." % db.variants.count())
+    logger.info("Reading %s variants..." % db.variants.estimated_document_count())
     metrics = defaultdict(list)
     binned_metrics = defaultdict(list)
     progress = 0
     start_time = time.time()
-    for variant in db.variants.find(
-        fields=["quality_metrics", "site_quality", "allele_num", "allele_count"]
-    ):
+    for variant in db.variants.find():
         for metric, value in variant["quality_metrics"].iteritems():
             metrics[metric].append(float(value))
         qual = float(variant["site_quality"])
@@ -628,7 +636,7 @@ def precalculate_metrics():
         db.metrics.insert(
             {"metric": "binned_%s" % metric, "mids": mids, "hist": list(hist[0])}
         )
-    db.metrics.ensure_index("metric")
+    db.metrics.create_index("metric")
     logger.info("Done pre-calculating metrics!")
 
 
@@ -637,15 +645,14 @@ def get_db():
     Opens a new database connection if there is none yet for the
     current application context.
     """
-    if not hasattr(g, "db_conn"):
-        g.db_conn = connect_db()
+    g.db_conn = connect_db()
     return g.db_conn
 
 
 # @app.teardown_appcontext
 # def close_db(error):
 #     """Closes the database again at the end of the request."""
-#     if hasattr(g, 'db_conn'):
+#     if not g.db_conn:
 #         g.db_conn.close()
 
 
