@@ -23,8 +23,8 @@ class Settings(BaseSettings):
 
     LOAD_DB_PARALLEL_PROCESSES: int = 4  # contigs assigned to threads, so good to make this a factor of 24 (eg. 2,3,4,6,8)
     SITES_VCFS: list[str] = glob.glob(
-        os.path.join(EXAC_FILES_DIRECTORY, "ExAC*.vcf.gz")
-    )
+        os.path.join(EXAC_FILES_DIRECTORY, "ExAC*.vcf")
+    )  # NOT GZIP
     GENCODE_GTF: str = os.path.join(EXAC_FILES_DIRECTORY, "gencode.gtf.gz")
     CANONICAL_TRANSCRIPT_FILE: str = os.path.join(
         EXAC_FILES_DIRECTORY,
