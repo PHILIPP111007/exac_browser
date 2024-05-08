@@ -8,7 +8,7 @@ EXAC_FILES_DIRECTORY = "/Users/phil/Downloads/exac_data"
 
 
 class Settings(BaseSettings):
-    APP: str = "exac:app"
+    APP: str = "main:app"
     HOST: str = "0.0.0.0"
     PORT: int = 8000
 
