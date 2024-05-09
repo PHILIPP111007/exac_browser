@@ -39,6 +39,8 @@ python manage.py create_cache
 docker-compose up
 ```
 
+Then go to `localhost`
+
 ## Development
 
 ### Dependencies
@@ -87,9 +89,9 @@ python main.py
 
 And visit on your browser:
 
-    http://localhost:8000
-    http://localhost:8000/gene/ENSG00000237683
-    http://localhost:8000/variant/20-76735-A-T
+    http://localhost
+    http://localhost/gene/ENSG00000237683
+    http://localhost/variant/20-76735-A-T
 
 For testing, you can open up an interactive shell with:
 

@@ -12,7 +12,7 @@ CPU_COUNT = cpu_count()
 class Settings(BaseSettings):
     APP: str = os.environ.get("APP", "main:app")
     HOST: str = os.environ.get("HOST", "0.0.0.0")
-    PORT: int = os.environ.get("PORT", 8000)
+    PORT: int = os.environ.get("PORT", 80)
 
     SECRET_KEY: str = os.environ.get("SECRET_KEY", "12345")
     DEBUG: bool = True
