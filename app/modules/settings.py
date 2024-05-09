@@ -14,7 +14,7 @@ class Settings(BaseSettings):
     HOST: str = os.environ.get("HOST", "0.0.0.0")
     PORT: int = os.environ.get("PORT", 8000)
 
-    SECRET_KEY: str = os.environ.get("SECRET_KEY", "development key")
+    SECRET_KEY: str = os.environ.get("SECRET_KEY", "12345")
     DEBUG: bool = True
 
     DB_HOST: str = os.environ.get("DB_HOST", "localhost")
