@@ -1,19 +1,47 @@
-# Usage
+# ExAC Browser
 
-*If you would like to use the ExAC browser, the most recent stable version is hosted at <http://exac.broadinstitute.org>*
+## DB Setup
 
-Advanced: The following instructions are useful for cloning the browser (e.g. to load custom sites/coverage data).
-Most users will not need to go through this process.
+At this point, it's probably worth quickly checking out the code structure if you haven't already :)
 
-# Installation
+Now we must load the database from those flat files.
+This is a single command, but it can take a while (can take advantage of parallel loads by modifying LOAD\_DB\_PARALLEL\_PROCESSES in exac.py):
 
-First (as this can run in parallel), get the datasets that the browser uses and put them into an 'exac_data' directory:
+    python manage.py load_db
 
-    wget http://broadinstitute.org/~konradk/exac_browser/exac_browser.tar.gz .
-    tar zxvf exac_browser.tar.gz
-    cd ..
+You won't have to run this often - most changes won't require rebuilding the database.
+That said, this is (and will remain) idempotent,
+so you can run it again at any time if you think something might be wrong - it will reload the database from scratch.
+You can also reload parts of the database using any of the following commands:
 
-## Dependencies
+```sh
+python manage.py load_variants_file
+python manage.py load_dbsnp_file
+python manage.py load_base_coverage
+python manage.py load_gene_models
+```
+
+Then run:
+
+```sh
+python manage.py precalculate_metrics
+```
+
+Then, you need to create a cache for autocomplete and large gene purposes:
+
+```sh
+python manage.py create_cache
+```
+
+## Production
+
+```sh
+docker-compose up
+```
+
+## Development
+
+### Dependencies
 
 Follow these instructions to get Python and Homebrew installed on your Mac:
 <http://docs.python-guide.org/en/latest/starting/install/osx/>
@@ -47,40 +75,7 @@ but I think it's easier just to open a tab you can monitor.
 micromamba env create -f ./env.yml
 ```
 
-## Setup
-
-At this point, it's probably worth quickly checking out the code structure if you haven't already :)
-
-Now we must load the database from those flat files.
-This is a single command, but it can take a while (can take advantage of parallel loads by modifying LOAD\_DB\_PARALLEL\_PROCESSES in exac.py):
-
-    python manage.py load_db
-
-You won't have to run this often - most changes won't require rebuilding the database.
-That said, this is (and will remain) idempotent,
-so you can run it again at any time if you think something might be wrong - it will reload the database from scratch.
-You can also reload parts of the database using any of the following commands:
-
-```sh
-python manage.py load_variants_file
-python manage.py load_dbsnp_file
-python manage.py load_base_coverage
-python manage.py load_gene_models
-```
-
-Then run:
-
-```sh
-python manage.py precalculate_metrics
-```
-
-Then, you need to create a cache for autocomplete and large gene purposes:
-
-```sh
-python manage.py create_cache
-```
-
-## Running the site
+### Running the app
 
 Note that if you are revisiting the site after a break, make sure your virtualenv is `activate`'d.
 
