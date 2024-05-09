@@ -9,3 +9,4 @@ gene_cache/
 *dist
 *node_modules
 *.ipynb
+exac_data

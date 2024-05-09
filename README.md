@@ -14,6 +14,8 @@ That said, this is (and will remain) idempotent,
 so you can run it again at any time if you think something might be wrong - it will reload the database from scratch.
 You can also reload parts of the database using any of the following commands:
 
+Copy all data files to `./exac_data` and then start docker container
+
 ```sh
 python manage.py load_variants_file
 python manage.py load_dbsnp_file

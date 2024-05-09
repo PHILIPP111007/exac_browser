@@ -11,8 +11,8 @@ services:
       - 80:80
     expose:
       - 80
-    # depends_on:
-    #   - db
+    depends_on:
+      - mongodb
     command: bash -c "
       uvicorn main:app
       --host 0.0.0.0 --port 80
@@ -21,10 +21,10 @@ services:
     environment:
       APP: "main:app"
       SECRET_KEY: "12345"
-
       DB_NAME: "exac"
-      DB_HOST: "localhost"
+      DB_HOST: "mongodb"
       DB_PORT: 27017
+      EXAC_FILES_DIRECTORY: "./exac_data"
   
   # nginx:
   #   build:
@@ -36,21 +36,20 @@ services:
   #   depends_on:
   #     - web
 
-  # db:
-  #   container_name: db
-  #   image: mongo
-  #   restart: unless-stopped
-  #   environment:
-  #     MONGO_INITDB_DATABASE: exac
-  #     MONGO_INITDB_ROOT_USERNAME: root
-  #     MONGO_INITDB_ROOT_PASSWORD: example
-  #   volumes:
-  #     - dbdata:/var/lib/postgresql/data/
-  #   ports:
-  #     - 27017:27017
-  #   command: mongod --quiet --logpath /dev/null
+  mongodb:
+    container_name: mongodb
+    image: mongo
+    restart: unless-stopped
+    environment:
+      MONGO_INITDB_DATABASE: exac
+      ### Without authentication
+      # MONGO_INITDB_ROOT_USERNAME: root
+      # MONGO_INITDB_ROOT_PASSWORD: password
+    volumes:
+      - mongodb:/var/lib/mongo/data/
+    ports:
+      - 27017:27017
+    command: mongod --quiet --logpath /dev/null
 
-# volumes:
-#   dbdata: null
-#   cache:
-#     driver: local
+volumes:
+  mongodb: null

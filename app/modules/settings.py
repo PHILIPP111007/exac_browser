@@ -5,8 +5,10 @@ from multiprocessing import cpu_count
 from pydantic_settings import BaseSettings
 
 
-EXAC_FILES_DIRECTORY = "/Users/phil/Downloads/exac_data"
-CPU_COUNT = cpu_count()
+EXAC_FILES_DIRECTORY = os.environ.get(
+    "EXAC_FILES_DIRECTORY", "/Users/phil/Downloads/exac_data"
+)
+CPU_COUNT = 4  # cpu_count() - 2
 
 
 class Settings(BaseSettings):
