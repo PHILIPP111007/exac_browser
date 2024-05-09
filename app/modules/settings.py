@@ -1,27 +1,29 @@
 import os
 import glob
+from multiprocessing import cpu_count
 
 from pydantic_settings import BaseSettings
 
 
 EXAC_FILES_DIRECTORY = "/Users/phil/Downloads/exac_data"
+CPU_COUNT = cpu_count()
 
 
 class Settings(BaseSettings):
-    APP: str = "main:app"
-    HOST: str = "0.0.0.0"
-    PORT: int = 8000
+    APP: str = os.environ.get("APP", "main:app")
+    HOST: str = os.environ.get("HOST", "0.0.0.0")
+    PORT: int = os.environ.get("PORT", 8000)
 
+    SECRET_KEY: str = os.environ.get("SECRET_KEY", "development key")
     DEBUG: bool = True
-    SECRET_KEY: str = "development key"
 
-    DB_HOST: str = "localhost"
-    DB_PORT: int = 27017
-    DB_NAME: str = "exac"
+    DB_HOST: str = os.environ.get("DB_HOST", "localhost")
+    DB_PORT: int = os.environ.get("DB_PORT", 27017)
+    DB_NAME: str = os.environ.get("DB_NAME", "exac")
 
     SEARCH_LIMIT: int = 10000
 
-    LOAD_DB_PARALLEL_PROCESSES: int = 4  # contigs assigned to threads, so good to make this a factor of 24 (eg. 2,3,4,6,8)
+    LOAD_DB_PARALLEL_PROCESSES: int = CPU_COUNT  # contigs assigned to threads, so good to make this a factor of 24 (eg. 2,3,4,6,8)
     SITES_VCFS: list[str] = glob.glob(
         os.path.join(EXAC_FILES_DIRECTORY, "ExAC*.vcf")
     )  # NOT GZIP

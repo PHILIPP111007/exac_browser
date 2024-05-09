@@ -1,13 +1,11 @@
 .DS_Store
-static/.DS_Store
 static/tablesorter-master
 .idea/
 *.pyc
 misc/
 autocomplete_strings.txt
 gene_cache/
-exac_env/
 *npm-debug.log
-exac_env
 *dist
 *node_modules
+*.ipynb

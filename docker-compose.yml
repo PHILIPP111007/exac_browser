@@ -1,0 +1,51 @@
+version: "3.8"
+
+services:
+  web:
+    container_name: web
+    restart: unless-stopped
+    build:
+      context: .
+      dockerfile: ./app/Dockerfile
+    ports:
+      - 8000:8000
+    # depends_on:
+    #   - db
+    command: sh -c "python main.py"
+    environment:
+      APP: "main:app"
+      HOST: "0.0.0.0"
+      PORT: 8000
+      SECRET_KEY: "12345"
+
+      DB_NAME: "exac"
+      DB_HOST: "localhost"
+      DB_PORT: 27017
+  
+  nginx:
+    build:
+      context: .
+      dockerfile: ./nginx/Dockerfile
+    ports:
+      - 80:80
+    command: ["nginx", "-g", "daemon off;"]
+    depends_on:
+      - web
+
+#   db:
+#     container_name: db
+#     image: postgres
+#     restart: unless-stopped
+#     environment:
+#       - POSTGRES_DB=postgres
+#       - POSTGRES_USER=postgres
+#       - POSTGRES_PASSWORD=postgres
+#     volumes:
+#       - dbdata:/var/lib/postgresql/data/
+#     ports:
+#       - 5432:5432
+
+# volumes:
+#   dbdata: null
+#   cache:
+#     driver: local
