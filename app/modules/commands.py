@@ -292,7 +292,7 @@ def load_cnv_genes():
     db = get_db()
     start_time = time.time()
     with open(settings.CNV_GENE_FILE) as cnv_gene_file:
-        result = list(get_cnvs_per_gene(cnv_gene_file))[:100]  # TODO
+        result = list(get_cnvs_per_gene(cnv_gene_file))  # [:100]  # TODO
         db.cnvgenes.insert_many(result)
         # progress.update(gtf_file.fileobj.tell())
         # progress.finish()
@@ -354,7 +354,7 @@ def parse_tabix_file_subset(tabix_filenames, subset_i, subset_n, record_parser):
                     )
                     % locals()
                 )
-                break
+                # break # TODO
 
     logger.info(
         "Finished loading subset %(subset_i)s from  %(short_filenames)s (%(counter)s records)"
@@ -597,7 +597,7 @@ def load_cnv_models():
 
     start_time = time.time()
     with open(settings.CNV_FILE) as cnv_txt_file:
-        result = list(get_cnvs_from_txt(cnv_txt_file))[:100]  # TODO
+        result = list(get_cnvs_from_txt(cnv_txt_file))  # [:100]  # TODO
         db.cnvs.insert_many(result)
         # progress.update(gtf_file.fileobj.tell())
         # progress.finish()
