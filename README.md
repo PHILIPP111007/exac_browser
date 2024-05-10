@@ -16,6 +16,8 @@ You can also reload parts of the database using any of the following commands:
 
 Copy all data files to `./exac_data` and then start docker container
 
+Set EXAC_FILES_DIRECTORY in `./app/modules/settings.py` and in `docker-compose.yml`
+
 ```sh
 python manage.py load_variants_file
 python manage.py load_dbsnp_file
