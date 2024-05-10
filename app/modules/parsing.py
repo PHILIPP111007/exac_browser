@@ -205,7 +205,7 @@ def get_variants_from_sites_vcf(sites_vcf):
                         info_field["DP_HIST"].split(",")[i + 1],
                     ]
                     variant["genotype_depths"] = [
-                        zip(dp_mids, map(int, x.split("|"))) for x in hists_all
+                        list(zip(dp_mids, map(int, x.split("|")))) for x in hists_all
                     ]
                 if "GQ_HIST" in info_field:
                     hists_all = [
@@ -213,7 +213,7 @@ def get_variants_from_sites_vcf(sites_vcf):
                         info_field["GQ_HIST"].split(",")[i + 1],
                     ]
                     variant["genotype_qualities"] = [
-                        zip(gq_mids, map(int, x.split("|"))) for x in hists_all
+                        list(zip(gq_mids, map(int, x.split("|")))) for x in hists_all
                     ]
 
                 yield variant
