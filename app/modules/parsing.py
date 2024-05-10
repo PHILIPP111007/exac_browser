@@ -257,7 +257,9 @@ def get_constraint_information(constraint_file):
     for line in constraint_file:
         line = line.decode()
         transcript, gene, chrom, info = line.strip().split(None, 3)
-        transcript_info = dict(zip(header, map(float, info.split())))
+        transcript_info = dict(
+            zip(map(lambda x: x.decode(), header), map(float, info.split()))
+        )
         transcript_info["transcript"] = transcript.split(".")[0]
         yield transcript_info
 
