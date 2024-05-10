@@ -24,15 +24,15 @@ var EXON_PADDING = 75;
         - Brett, will you please write some fucking tests for this...
 
  */
-window.get_coding_coordinates = function(_transcript, position_list, skip_utrs) {
-//    console.log(_transcript.exons);
+window.get_coding_coordinates = function (_transcript, position_list, skip_utrs) {
+    //    console.log(_transcript.exons);
     var exons;
     if (skip_utrs) {
-        exons = _.filter(_transcript.exons, function(d) {
+        exons = _.filter(_transcript.exons, function (d) {
             return d.feature_type == 'CDS';
         });
     } else {
-        exons = _.filter(_transcript.exons, function(d) {
+        exons = _.filter(_transcript.exons, function (d) {
             return d.feature_type == 'CDS' || d.feature_type == 'UTR';
         });
     }
@@ -42,14 +42,14 @@ window.get_coding_coordinates = function(_transcript, position_list, skip_utrs) 
     var num_exons = exons.length;
     var exon_offsets = [];
     // initialize with one sided padding
-    for (var i=0; i<num_exons; i++) {
+    for (var i = 0; i < num_exons; i++) {
         exon_offsets.push(EXON_PADDING);
     }
-    for (var i=0; i<num_exons; i++) {
-        for (var j=i+1; j<num_exons; j++) {
+    for (var i = 0; i < num_exons; i++) {
+        for (var j = i + 1; j < num_exons; j++) {
             exon_offsets[j] += exons[i]['stop'] - exons[i]['start'];
-            if (skip_utrs || (i == num_exons - 1 || exons[i]['stop'] != exons[i+1]['start'] - 1)) {
-                exon_offsets[j] += EXON_PADDING*2;
+            if (skip_utrs || (i == num_exons - 1 || exons[i]['stop'] != exons[i + 1]['start'] - 1)) {
+                exon_offsets[j] += EXON_PADDING * 2;
             }
         }
     }
@@ -57,11 +57,11 @@ window.get_coding_coordinates = function(_transcript, position_list, skip_utrs) 
     // get each position
     // todo: optimize by sorting positions
     var coding_positions = [];
-    for (var i=0; i<num_exons; i++) {  // todo: underscore init method?
+    for (var i = 0; i < num_exons; i++) {  // todo: underscore init method?
         coding_positions.push(-100);
     }
-    _.each(position_list, function(position, i) {
-        _.each(exons, function(exon, j) {
+    _.each(position_list, function (position, i) {
+        _.each(exons, function (exon, j) {
             if (position >= exon.start - EXON_PADDING && position <= exon.stop + EXON_PADDING) {
                 coding_positions[i] = exon_offsets[j] + position - exon.start;
                 return;
@@ -71,20 +71,20 @@ window.get_coding_coordinates = function(_transcript, position_list, skip_utrs) 
     return coding_positions;
 };
 
-window.get_coding_coordinate = function(_transcript, position, skip_utrs) {
+window.get_coding_coordinate = function (_transcript, position, skip_utrs) {
     return get_coding_coordinates(_transcript, [position], skip_utrs)[0];
 };
 
 
-window.get_coding_coordinate_params = function(_transcript, skip_utrs) {
+window.get_coding_coordinate_params = function (_transcript, skip_utrs) {
     var ret = {};
     var exons;
     if (skip_utrs) {
-        exons = _.filter(_transcript.exons, function(d) {
+        exons = _.filter(_transcript.exons, function (d) {
             return d.feature_type == 'CDS';
         });
     } else {
-        exons = _.filter(_transcript.exons, function(d) {
+        exons = _.filter(_transcript.exons, function (d) {
             return d.feature_type == 'CDS' || d.feature_type == 'UTR';
         });
     }
@@ -93,72 +93,70 @@ window.get_coding_coordinate_params = function(_transcript, skip_utrs) {
     }
     ret.num_exons = exons.length;
     ret.size = EXON_PADDING;
-    for (var i=0; i<ret.num_exons; i++) {
+    for (var i = 0; i < ret.num_exons; i++) {
         ret.size += exons[i].stop - exons[i].start;
-        if (skip_utrs || (i == ret.num_exons - 1 || exons[i]['stop'] != exons[i+1]['start'] - 1)) {
-            ret.size += EXON_PADDING*2;
+        if (skip_utrs || (i == ret.num_exons - 1 || exons[i]['stop'] != exons[i + 1]['start'] - 1)) {
+            ret.size += EXON_PADDING * 2;
         }
     }
     ret.size -= EXON_PADDING;
     return ret;
 };
 
-window.precalc_coding_coordinates = function(_transcript, objects, key) {
-    var orig_positions = _.map(objects, function(o) { return o[key] });
+window.precalc_coding_coordinates = function (_transcript, objects, key) {
+    var orig_positions = _.map(objects, function (o) { return o[key] });
     var new_positions;
     new_positions = get_coding_coordinates(_transcript, orig_positions, false);
-    _.each(objects, function(o, i) {
-        o[key+'_coding'] = new_positions[i];
+    _.each(objects, function (o, i) {
+        o[key + '_coding'] = new_positions[i];
     });
     new_positions = get_coding_coordinates(_transcript, orig_positions, true);
-    _.each(objects, function(o, i) {
-        o[key+'_coding_noutr'] = new_positions[i];
+    _.each(objects, function (o, i) {
+        o[key + '_coding_noutr'] = new_positions[i];
     });
 };
 
-window.get_cnv = function(_cnvs, start, stop, type, filter_status){
+window.get_cnv = function (_cnvs, start, stop, type, filter_status) {
     var r = 0;
-    for (var i=0; i<_cnvs.length; i++) {
-        if(_cnvs[i].start+1 == start || _cnvs[i].stop+1 == stop){
-            if(filter_status)
-		{
-		    accessor = type + '0';
-		}else{
+    for (var i = 0; i < _cnvs.length; i++) {
+        if (_cnvs[i].start + 1 == start || _cnvs[i].stop + 1 == stop) {
+            if (filter_status) {
+                accessor = type + '0';
+            } else {
                 accessor = type + '60';
             }
-            r =  _cnvs[i][accessor];
+            r = _cnvs[i][accessor];
         }
     }
     return r;
 };
 
-window.get_cnv_pop = function(_cnvs, start, stop, type, filter_status){
+window.get_cnv_pop = function (_cnvs, start, stop, type, filter_status) {
     var r = 0;
-    for (var i=0; i<_cnvs.length; i++) {
-        if(_cnvs[i].start+1 == start || _cnvs[i].stop+1 == stop){
-            if(filter_status)
-		{
-		    accessor = type + 'pop0';
-		}else{
+    for (var i = 0; i < _cnvs.length; i++) {
+        if (_cnvs[i].start + 1 == start || _cnvs[i].stop + 1 == stop) {
+            if (filter_status) {
+                accessor = type + 'pop0';
+            } else {
                 accessor = type + 'pop60';
             }
-            r =  _cnvs[i][accessor];
+            r = _cnvs[i][accessor];
         }
     }
     return r;
 };
 
-window.get_max_cnv = function(_cnvs, filter_status){
+window.get_max_cnv = function (_cnvs, filter_status) {
     var r = 0;
-    for (var i=0; i<_cnvs.length; i++) {
-	if(filter_status){
-	    var m = Math.max(_cnvs[i].del0, _cnvs[i].dup0);
-	}else{
-	    var m = Math.max(_cnvs[i].del60, _cnvs[i].dup60);
-	}
-	if( m > r){
-	        r = m
-		    }
+    for (var i = 0; i < _cnvs.length; i++) {
+        if (filter_status) {
+            var m = Math.max(_cnvs[i].del0, _cnvs[i].dup0);
+        } else {
+            var m = Math.max(_cnvs[i].del60, _cnvs[i].dup60);
+        }
+        if (m > r) {
+            r = m
+        }
     }
     return r;
 };
@@ -173,7 +171,7 @@ window.get_max_cnv = function(_cnvs, filter_status){
  *
  */
 
-quality_chart_margin = {top: 10, right: 30, bottom: 45, left: 65};
+quality_chart_margin = { top: 10, right: 30, bottom: 45, left: 65 };
 quality_chart_height = 250 - quality_chart_margin.top - quality_chart_margin.bottom;
 quality_chart_width = 300 - quality_chart_margin.left - quality_chart_margin.right;
 xoffset = 40;
@@ -202,7 +200,7 @@ function draw_quality_histogram(data, container, log, xlabel, ylabel) {
     }
     var bar_width = x(data[1][0]) - x(data[0][0]);
     var y = d3.scale.linear()
-        .domain([d3.min(data, function(d) { return d[1]; }), d3.max(data, function(d) { return d[1]; })])
+        .domain([d3.min(data, function (d) { return d[1]; }), d3.max(data, function (d) { return d[1]; })])
         .range([quality_chart_height, 0]);
 
     var xAxis = d3.svg.axis()
@@ -225,7 +223,7 @@ function draw_quality_histogram(data, container, log, xlabel, ylabel) {
             .attr("class", "x label")
             .attr("text-anchor", "middle")
             .style("font-size", "12px")
-            .attr("x", quality_chart_width/2)
+            .attr("x", quality_chart_width / 2)
             .attr("y", quality_chart_height + xoffset)
             .text(xlabel);
         svg.append("text")
@@ -233,7 +231,7 @@ function draw_quality_histogram(data, container, log, xlabel, ylabel) {
             .attr("text-anchor", "middle")
             .style("font-size", "12px")
             .attr("transform", "rotate(-90)")
-            .attr("x", -quality_chart_height/2)
+            .attr("x", -quality_chart_height / 2)
             .attr("y", -yoffset)
             .text(ylabel);
         var bar = svg.selectAll(".bar")
@@ -242,10 +240,10 @@ function draw_quality_histogram(data, container, log, xlabel, ylabel) {
             .attr("class", "bar");
 
         bar.append("rect")
-            .attr("x", function(d) { return x(d[0]); })
+            .attr("x", function (d) { return x(d[0]); })
             .attr("width", bar_width)
-            .attr("height", function(d) { return quality_chart_height - y(d[1]); })
-            .attr("y", function(d) { return y(d[1]); });
+            .attr("height", function (d) { return quality_chart_height - y(d[1]); })
+            .attr("y", function (d) { return y(d[1]); });
 
         if (container == '#quality_metric_container') {
             svg.append("g")
@@ -257,7 +255,7 @@ function draw_quality_histogram(data, container, log, xlabel, ylabel) {
                 .style("text-anchor", "end")
                 .attr("dx", "-.8em")
                 .attr("dy", ".15em")
-                .attr("transform", function(d) {
+                .attr("transform", function (d) {
                     return "rotate(-45)"
                 });
             svg.append("g")
@@ -285,14 +283,14 @@ function draw_quality_histogram(data, container, log, xlabel, ylabel) {
                 .style("text-anchor", "end")
                 .attr("dx", "-.8em")
                 .attr("dy", ".15em")
-                .attr("transform", function(d) {
+                .attr("transform", function (d) {
                     return "rotate(-45)"
                 });
         } else {
             svg.select(".x.axis")
-            .transition()
-            .attr("transform", "translate(0," + quality_chart_height + ")")
-            .call(xAxis);
+                .transition()
+                .attr("transform", "translate(0," + quality_chart_height + ")")
+                .call(xAxis);
         }
 
         svg.select(".y.axis")
@@ -307,10 +305,10 @@ function draw_quality_histogram(data, container, log, xlabel, ylabel) {
             .data(data)
             .transition()
             .duration(500)
-            .attr("x", function(d) { return x(d[0]); })
+            .attr("x", function (d) { return x(d[0]); })
             .attr("width", bar_width)
-            .attr("height", function(d) { return quality_chart_height - y(d[1]); })
-            .attr("y", function(d) { return y(d[1]); });
+            .attr("height", function (d) { return quality_chart_height - y(d[1]); })
+            .attr("y", function (d) { return y(d[1]); });
     }
 }
 
@@ -328,7 +326,7 @@ function add_line_to_quality_histogram(data, position, container, log) {
             .domain([low_value, high_value])
             .range([0, quality_chart_width]);
     }
-    x = function(d) {
+    x = function (d) {
         var pos;
         if (d > high_value) {
             pos = xscale(high_value);
@@ -342,23 +340,23 @@ function add_line_to_quality_histogram(data, position, container, log) {
     var svg = d3.select(container).select('svg').select('#inner_graph');
     if (svg.selectAll('.line').length == 0 || svg.selectAll('.line')[0].length == 0) {
         var lines = svg.selectAll(".line")
-                    .data([position])
-                    .enter().append("g")
-                    .attr("class", "line");
+            .data([position])
+            .enter().append("g")
+            .attr("class", "line");
         lines.append('line')
-                .attr("x1", function(d) { return x(d); })
-                .attr("x2", function(d) { return x(d); })
-                .attr("y1", quality_chart_height)
-                .attr("y2", 0)
-                .attr("stroke-width", 2)
-                .attr("stroke", "red");
+            .attr("x1", function (d) { return x(d); })
+            .attr("x2", function (d) { return x(d); })
+            .attr("y1", quality_chart_height)
+            .attr("y2", 0)
+            .attr("stroke-width", 2)
+            .attr("stroke", "red");
     } else {
         svg.selectAll('.line').select('line')
             .data([position])
             .transition()
             .duration(500)
-            .attr("x1", function(d) { return x(d); })
-            .attr("x2", function(d) { return x(d); })
+            .attr("x1", function (d) { return x(d); })
+            .attr("x2", function (d) { return x(d); })
             .attr("y1", quality_chart_height)
             .attr("y2", 0)
             .attr("stroke-width", 2)
@@ -368,16 +366,16 @@ function add_line_to_quality_histogram(data, position, container, log) {
 
 function draw_region_coverage(raw_data, metric, ref) {
     region_chart_width = 500;
-    region_chart_margin = {top: 10, right: 50, bottom: 55, left: 50};
+    region_chart_margin = { top: 10, right: 50, bottom: 55, left: 50 };
     if (raw_data.length > 1) {
         var data = raw_data;
-        var chart_width = _.min([region_chart_width, data.length*30]);
+        var chart_width = _.min([region_chart_width, data.length * 30]);
         var x = d3.scale.linear()
             .domain([0, data.length])
             .range([0, chart_width]);
 
         var y = d3.scale.linear()
-            .domain([0, d3.max(data, function(d) { return d[metric]; })])
+            .domain([0, d3.max(data, function (d) { return d[metric]; })])
             .range([quality_chart_height, 0]);
 
         var xAxis = d3.svg.axis()
@@ -392,11 +390,11 @@ function draw_region_coverage(raw_data, metric, ref) {
 
         if (svg.selectAll('rect').length == 0 || svg.selectAll('rect')[0].length == 0) {
             svg = d3.select('#region_coverage').append("svg")
-            .attr("width", chart_width  + region_chart_margin.left + region_chart_margin.right)
-            .attr("height", quality_chart_height + region_chart_margin.top + region_chart_margin.bottom)
-            .append("g")
-            .attr('id', 'inner_graph')
-            .attr("transform", "translate(" + region_chart_margin.left + "," + region_chart_margin.top + ")");
+                .attr("width", chart_width + region_chart_margin.left + region_chart_margin.right)
+                .attr("height", quality_chart_height + region_chart_margin.top + region_chart_margin.bottom)
+                .append("g")
+                .attr('id', 'inner_graph')
+                .attr("transform", "translate(" + region_chart_margin.left + "," + region_chart_margin.top + ")");
 
             var bar = svg.selectAll(".bar")
                 .data(data)
@@ -404,14 +402,14 @@ function draw_region_coverage(raw_data, metric, ref) {
                 .attr("class", "bar");
 
             bar.append("rect")
-                .attr("x", function(d, i) { return x(i); })
-                .attr("width", chart_width/data.length - 1)
-                .attr("height", function(d) { return quality_chart_height - y(d[metric]); })
-                .attr("y", function(d) { return y(d[metric]); });
+                .attr("x", function (d, i) { return x(i); })
+                .attr("width", chart_width / data.length - 1)
+                .attr("height", function (d) { return quality_chart_height - y(d[metric]); })
+                .attr("y", function (d) { return y(d[metric]); });
 
             xAxis = d3.svg.axis()
                 .scale(x)
-                .tickFormat(function(d) { return ref[d]; })
+                .tickFormat(function (d) { return ref[d]; })
                 .innerTickSize(0)
                 .orient("bottom");
 
@@ -433,15 +431,15 @@ function draw_region_coverage(raw_data, metric, ref) {
                 .data(data)
                 .transition()
                 .duration(500)
-                .attr("x", function(d, i) { return x(i); })
-                .attr("width", chart_width/data.length - 1)
-                .attr("height", function(d) { return quality_chart_height - y(d[metric]); })
-                .attr("y", function(d) { return y(d[metric]); });
+                .attr("x", function (d, i) { return x(i); })
+                .attr("width", chart_width / data.length - 1)
+                .attr("height", function (d) { return quality_chart_height - y(d[metric]); })
+                .attr("y", function (d) { return y(d[metric]); });
         }
     } else {
         PADDING = 1;
         var data1 = {};
-        $.each(raw_data[0], function(d, i) {
+        $.each(raw_data[0], function (d, i) {
             var num = parseInt(d);
             if (!isNaN(num)) {
                 data1[d] = raw_data[0][d];
@@ -453,7 +451,7 @@ function draw_region_coverage(raw_data, metric, ref) {
 
         var coverages = Object.keys(data1);
         var other_labels = Object.keys(data2);
-        var all_labels = coverages.concat(Array.apply(null, Array(PADDING)).map(String.prototype.valueOf,""), other_labels);
+        var all_labels = coverages.concat(Array.apply(null, Array(PADDING)).map(String.prototype.valueOf, ""), other_labels);
 
         var chart_width = region_chart_width;
         var total_data_length = coverages.length + other_labels.length + PADDING;
@@ -462,16 +460,16 @@ function draw_region_coverage(raw_data, metric, ref) {
             .range([0, chart_width]);
 
         var y1 = d3.scale.linear()
-            .domain([0, d3.max(coverages, function(d) { return data1[d]; })])
+            .domain([0, d3.max(coverages, function (d) { return data1[d]; })])
             .range([quality_chart_height, 0]);
 
         var y2 = d3.scale.linear()
-            .domain([0, d3.max(other_labels, function(d) { return data2[d]; })])
+            .domain([0, d3.max(other_labels, function (d) { return data2[d]; })])
             .range([quality_chart_height, 0]);
 
         var xAxis = d3.svg.axis()
             .scale(x)
-            .tickFormat(function(d) { return all_labels[d - 1]; })
+            .tickFormat(function (d) { return all_labels[d - 1]; })
             .orient("bottom");
 
         var yAxis1 = d3.svg.axis()
@@ -496,10 +494,10 @@ function draw_region_coverage(raw_data, metric, ref) {
             .attr("class", "bar");
 
         bar.append("rect")
-            .attr("x", function(d, i) { return x(i); })
-            .attr("width", chart_width/total_data_length)
-            .attr("height", function(d) { return quality_chart_height - y1(data1[d]); })
-            .attr("y", function(d) { return y1(data1[d]); });
+            .attr("x", function (d, i) { return x(i); })
+            .attr("width", chart_width / total_data_length)
+            .attr("height", function (d) { return quality_chart_height - y1(data1[d]); })
+            .attr("y", function (d) { return y1(data1[d]); });
 
         svg.append("g")
             .attr("class", "x axis")
@@ -514,10 +512,10 @@ function draw_region_coverage(raw_data, metric, ref) {
             .attr("class", "bar");
 
         bar.append("rect")
-            .attr("x", function(d, i) { return x(i + coverages.length + PADDING); })
-            .attr("width", chart_width/total_data_length)
-            .attr("height", function(d) { return quality_chart_height - y2(data2[d]); })
-            .attr("y", function(d) { return y2(data2[d]); });
+            .attr("x", function (d, i) { return x(i + coverages.length + PADDING); })
+            .attr("width", chart_width / total_data_length)
+            .attr("height", function (d) { return quality_chart_height - y2(data2[d]); })
+            .attr("y", function (d) { return y2(data2[d]); });
 
         svg.append("g")
             .attr("class", "y axis")
@@ -532,7 +530,7 @@ function draw_region_coverage(raw_data, metric, ref) {
             .attr("class", "x label")
             .attr("text-anchor", "middle")
             .style("font-size", "12px")
-            .attr("x", region_chart_width/3)
+            .attr("x", region_chart_width / 3)
             .attr("y", quality_chart_height + 50)
             .text(">= Coverage");
         svg.append("text")
@@ -540,7 +538,7 @@ function draw_region_coverage(raw_data, metric, ref) {
             .attr("text-anchor", "middle")
             .style("font-size", "12px")
             .attr("transform", "rotate(-90)")
-            .attr("x", -quality_chart_height/2)
+            .attr("x", -quality_chart_height / 2)
             .attr("y", -40)
             .text("Fraction individuals covered");
         svg.append("text")
@@ -548,56 +546,56 @@ function draw_region_coverage(raw_data, metric, ref) {
             .attr("text-anchor", "middle")
             .style("font-size", "12px")
             .attr("transform", "rotate(-90)")
-            .attr("x", -quality_chart_height/2)
-            .attr("y", region_chart_width+40)
+            .attr("x", -quality_chart_height / 2)
+            .attr("y", region_chart_width + 40)
             .text("Depth");
     }
 }
 
 var csq_order = [
-  'transcript_ablation',
-  'splice_acceptor_variant',
-  'splice_donor_variant',
-  'stop_gained',
-  'frameshift_variant',
-  'stop_lost',
-  'start_lost',
-  'inframe_insertion',
-  'inframe_deletion',
-  'missense_variant',
-  'protein_altering_variant',
-  'incomplete_terminal_codon_variant',
-  'stop_retained_variant',
-  'synonymous_variant',
-  'coding_sequence_variant',
-  'mature_miRNA_variant',
-  '5_prime_UTR_variant',
-  '3_prime_UTR_variant',
-  'non_coding_transcript_exon_variant',
-  'non_coding_exon_variant',
-  'NMD_transcript_variant',
-  'non_coding_transcript_variant',
-  'nc_transcript_variant',
-  'downstream_gene_variant',
-  'TFBS_ablation',
-  'TFBS_amplification',
-  'TF_binding_site_variant',
-  'regulatory_region_ablation',
-  'regulatory_region_amplification',
-  'feature_elongation',
-  'regulatory_region_variant',
-  'feature_truncation',
-  'intergenic_variant',
-  ''
+    'transcript_ablation',
+    'splice_acceptor_variant',
+    'splice_donor_variant',
+    'stop_gained',
+    'frameshift_variant',
+    'stop_lost',
+    'start_lost',
+    'inframe_insertion',
+    'inframe_deletion',
+    'missense_variant',
+    'protein_altering_variant',
+    'incomplete_terminal_codon_variant',
+    'stop_retained_variant',
+    'synonymous_variant',
+    'coding_sequence_variant',
+    'mature_miRNA_variant',
+    '5_prime_UTR_variant',
+    '3_prime_UTR_variant',
+    'non_coding_transcript_exon_variant',
+    'non_coding_exon_variant',
+    'NMD_transcript_variant',
+    'non_coding_transcript_variant',
+    'nc_transcript_variant',
+    'downstream_gene_variant',
+    'TFBS_ablation',
+    'TFBS_amplification',
+    'TF_binding_site_variant',
+    'regulatory_region_ablation',
+    'regulatory_region_amplification',
+    'feature_elongation',
+    'regulatory_region_variant',
+    'feature_truncation',
+    'intergenic_variant',
+    ''
 ]
 
 var categoryDefinitions = {
-  all: csq_order,
-  lof: csq_order.slice(0, csq_order.indexOf('stop_lost')),
-  missense: csq_order.slice(
-      csq_order.indexOf('stop_lost'),
-      csq_order.indexOf('protein_altering_variant')
-  ),
+    all: csq_order,
+    lof: csq_order.slice(0, csq_order.indexOf('stop_lost')),
+    missense: csq_order.slice(
+        csq_order.indexOf('stop_lost'),
+        csq_order.indexOf('protein_altering_variant')
+    ),
 }
 categoryDefinitions.missenseAndLof =
     categoryDefinitions.lof.concat(categoryDefinitions.missense)
@@ -613,7 +611,7 @@ function update_variants() {
         .replace('indel_selection_', '')
         .replace('_button', '');
     $('[major_consequence]').hide()
-    $('[major_consequence]').map(function(row) {
+    $('[major_consequence]').map(function (row) {
         if (!filterState && $(this).attr('filter_status') !== 'PASS') {
             return
         }
@@ -644,7 +642,7 @@ function update_cnvs() {
 
 function get_af_bounds(data) {
     // Removing AC_Adj = 0 cases
-    var min_af = d3.min(data, function(d) {
+    var min_af = d3.min(data, function (d) {
         if (d.allele_freq > 0) {
             return d.allele_freq;
         } else {
@@ -652,23 +650,23 @@ function get_af_bounds(data) {
         }
     });
     // Should this be 1?
-    var max_af = d3.max(data, function(d) { return d.allele_freq; });
+    var max_af = d3.max(data, function (d) { return d.allele_freq; });
     return [min_af, max_af];
 }
 
 total_width = $(window).width() < 768 ? $(window).width() : $(window).width() * 10 / 12;
 
-gene_chart_margin = {top: 10, right: 10, bottom: 5, left: 30};
+gene_chart_margin = { top: 10, right: 10, bottom: 5, left: 30 };
 if ($(window).width() < 768) {
     gene_chart_margin.left = 10;
 }
-gene_chart_margin_lower = {top: 5, right: gene_chart_margin.right, bottom: 5, left: gene_chart_margin.left},
+gene_chart_margin_lower = { top: 5, right: gene_chart_margin.right, bottom: 5, left: gene_chart_margin.left },
     gene_chart_width = total_width - gene_chart_margin.left - gene_chart_margin.right;
 
 lower_gene_chart_height = 50 - gene_chart_margin_lower.top - gene_chart_margin_lower.bottom,
     gene_chart_height = 300 - gene_chart_margin.top - gene_chart_margin.bottom - lower_gene_chart_height - gene_chart_margin_lower.top - gene_chart_margin_lower.bottom;
 
-cnv_chart_margin = {top: 30, right: gene_chart_margin.right, bottom: gene_chart_margin.bottom, left: gene_chart_margin.left};
+cnv_chart_margin = { top: 30, right: gene_chart_margin.right, bottom: gene_chart_margin.bottom, left: gene_chart_margin.left };
 if ($(window).width() < 768) {
     cnv_chart_margin.left = 10;
 
@@ -695,7 +693,7 @@ function change_track_chart_variant_size(variant_data, change_to, container) {
         .selectAll("ellipse")
         .transition()
         .duration(500)
-        .attr("ry", function(d, i) {
+        .attr("ry", function (d, i) {
             if (!d.allele_freq) {
                 return 0;
             } else {
@@ -708,36 +706,36 @@ function memorySizeOf(obj) {
     var bytes = 0;
 
     function sizeOf(obj) {
-        if(obj !== null && obj !== undefined) {
-            switch(typeof obj) {
-            case 'number':
-                bytes += 8;
-                break;
-            case 'string':
-                bytes += obj.length * 2;
-                break;
-            case 'boolean':
-                bytes += 4;
-                break;
-            case 'object':
-                var objClass = Object.prototype.toString.call(obj).slice(8, -1);
-                if(objClass === 'Object' || objClass === 'Array') {
-                    for(var key in obj) {
-                        if(!obj.hasOwnProperty(key)) continue;
-                        sizeOf(obj[key]);
-                    }
-                } else bytes += obj.toString().length * 2;
-                break;
+        if (obj !== null && obj !== undefined) {
+            switch (typeof obj) {
+                case 'number':
+                    bytes += 8;
+                    break;
+                case 'string':
+                    bytes += obj.length * 2;
+                    break;
+                case 'boolean':
+                    bytes += 4;
+                    break;
+                case 'object':
+                    var objClass = Object.prototype.toString.call(obj).slice(8, -1);
+                    if (objClass === 'Object' || objClass === 'Array') {
+                        for (var key in obj) {
+                            if (!obj.hasOwnProperty(key)) continue;
+                            sizeOf(obj[key]);
+                        }
+                    } else bytes += obj.toString().length * 2;
+                    break;
             }
         }
         return bytes;
     };
 
     function formatByteSize(bytes) {
-        if(bytes < 1024) return bytes + " bytes";
-        else if(bytes < 1048576) return(bytes / 1024).toFixed(3) + " KiB";
-        else if(bytes < 1073741824) return(bytes / 1048576).toFixed(3) + " MiB";
-        else return(bytes / 1073741824).toFixed(3) + " GiB";
+        if (bytes < 1024) return bytes + " bytes";
+        else if (bytes < 1048576) return (bytes / 1024).toFixed(3) + " KiB";
+        else if (bytes < 1073741824) return (bytes / 1048576).toFixed(3) + " MiB";
+        else return (bytes / 1073741824).toFixed(3) + " GiB";
     };
 
     return formatByteSize(sizeOf(obj));
@@ -779,20 +777,20 @@ function exportTableToCSV($table, filename) {
 
     $(this)
         .attr({
-        'download': filename,
+            'download': filename,
             'href': csvData,
             'target': '_blank'
-    });
+        });
 }
 function pad_2(number) { return (number < 10 ? '0' : '') + number; }
 
 function date_format(date) {
-     return date.getFullYear() + '_' +
-         pad_2(date.getMonth()+1) + '_' +
-         pad_2(date.getDate()) + '_' +
-            pad_2(date.getHours()) + '_' +
-            pad_2(date.getMinutes()) + '_' +
-            pad_2(date.getSeconds()) ;
+    return date.getFullYear() + '_' +
+        pad_2(date.getMonth() + 1) + '_' +
+        pad_2(date.getDate()) + '_' +
+        pad_2(date.getHours()) + '_' +
+        pad_2(date.getMinutes()) + '_' +
+        pad_2(date.getSeconds());
 }
 
 function set_plot_image(container, index) {
@@ -803,10 +801,10 @@ function set_plot_image(container, index) {
     var source = serializer.serializeToString(svg);
 
     //add name spaces.
-    if(!source.match(/^<svg[^>]+xmlns="http\:\/\/www\.w3\.org\/2000\/svg"/)){
+    if (!source.match(/^<svg[^>]+xmlns="http\:\/\/www\.w3\.org\/2000\/svg"/)) {
         source = source.replace(/^<svg/, '<svg xmlns="http://www.w3.org/2000/svg"');
     }
-    if(!source.match(/^<svg[^>]+"http\:\/\/www\.w3\.org\/1999\/xlink"/)){
+    if (!source.match(/^<svg[^>]+"http\:\/\/www\.w3\.org\/1999\/xlink"/)) {
         source = source.replace(/^<svg/, '<svg xmlns:xlink="http://www.w3.org/1999/xlink"');
     }
 
@@ -814,5 +812,5 @@ function set_plot_image(container, index) {
     source = '<?xml version="1.0" standalone="no"?>\r\n' + source;
 
     //convert svg source to URI data scheme.
-    return "data:image/svg+xml;charset=utf-8,"+encodeURIComponent(source);
+    return "data:image/svg+xml;charset=utf-8," + encodeURIComponent(source);
 }

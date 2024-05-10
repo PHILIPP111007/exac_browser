@@ -21,7 +21,7 @@
     margin-bottom: 0px;
 }
 
-.navbar .navbar-form{
+.navbar .navbar-form {
     padding: 0 15px;
     border: 0;
     -webkit-box-shadow: none;
@@ -55,11 +55,11 @@
 }
 
 .tt-query {
-  color: #000;
+    color: #000;
 }
 
 .tt-hint {
-  color: #999;
+    color: #999;
 }
 
 .lof_variant {
@@ -87,19 +87,19 @@
 }
 
 .d3-tip {
-  line-height: 1;
-  font-weight: bold;
-  padding: 12px;
-  background: rgba(0, 0, 0, 0.8);
-  color: #fff;
-  border-radius: 2px;
+    line-height: 1;
+    font-weight: bold;
+    padding: 12px;
+    background: rgba(0, 0, 0, 0.8);
+    color: #fff;
+    border-radius: 2px;
 }
 
 /* Style northward tooltips differently */
 .d3-tip.n:after {
-  margin: -1px 0 0 0;
-  top: 100%;
-  left: 0;
+    margin: -1px 0 0 0;
+    top: 100%;
+    left: 0;
 }
 
 .table_hover {
@@ -139,8 +139,8 @@ th.allele_frequency_column {
     padding: 7px;
     width: auto;
     -webkit-border-radius: 3px;
-    -moz-border-radius:    3px;
-    border-radius:         3px;
+    -moz-border-radius: 3px;
+    border-radius: 3px;
     background-color: #000;
     background-color: hsla(0, 0%, 20%, 0.9);
     color: #fff;
@@ -184,33 +184,33 @@ TODO: come up with a better way to position tooltip
 .tooltip-table-header:focus:before,
 .tooltip-table-header:focus:after {
     -webkit-transform: translate(-5px, 7px);
-    -moz-transform:    translate(-5px, 7px);
-    transform:         translate(-5px, 7px);
+    -moz-transform: translate(-5px, 7px);
+    transform: translate(-5px, 7px);
 }
 
 .variant_selector_group {
-  display: flex;
-  flex-direction: row;
-  justify-content: space-between;
+    display: flex;
+    flex-direction: row;
+    justify-content: space-between;
 }
 
 .varying_selector_checkboxes {
-  display: flex;
-  flex-direction: column;
-  justify-content: space-between;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
 }
 
 .jobs {
-  display: flex;
-  justify-content: center;
-  background-color: white;
-  width: 100%;
+    display: flex;
+    justify-content: center;
+    background-color: white;
+    width: 100%;
 }
 
 .jobs p {
-  margin-bottom: 0px;
+    margin-bottom: 0px;
 }
 
 .jobs a {
-  color: #428bca;
+    color: #428bca;
 }
