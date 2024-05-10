@@ -226,7 +226,12 @@ def gene_page(request: Request, gene_id: str):
             os.path.join(settings.GENE_CACHE_DIR, "{}.html".format(gene_id))
         ).read()
     else:
-        return get_gene_page_content(request, gene_id)
+        context = get_gene_page_content(get_context=True, gene_id=gene_id)
+        if context is None:
+            return Response(status_code=404)
+        return templates.TemplateResponse(
+            request=request, name="gene.html", context=context
+        )
 
 
 @app.get("/transcript/{transcript_id}/", response_class=HTMLResponse)

@@ -224,8 +224,9 @@ def get_variants_from_sites_vcf(sites_vcf):
 
 
 def get_mnp_data(mnp_file):
-    header = mnp_file.readline().strip().split("\t")
+    header = mnp_file.readline().decode().strip().split("\t")
     for line in mnp_file:
+        line = line.decode()
         data = dict(zip(header, line.split("\t")))
         if any(map(lambda x: x == "True", data["QUESTIONABLE_PHASING"])):
             continue
@@ -235,7 +236,7 @@ def get_mnp_data(mnp_file):
         refs = data["REF"].split(",")
         alts = data["ALT"].split(",")
         for i, site in enumerate(sites):
-            all_sites = zip(chroms, sites, refs, alts)
+            all_sites = list(zip(chroms, sites, refs, alts))
             all_sites.remove(all_sites[i])
             mnp = {}
             mnp["xpos"] = get_xpos(chrom, site)
@@ -254,6 +255,7 @@ def get_constraint_information(constraint_file):
     _, _, _, header = constraint_file.readline().strip().split(None, 3)
     header = header.split()
     for line in constraint_file:
+        line = line.decode()
         transcript, gene, chrom, info = line.strip().split(None, 3)
         transcript_info = dict(zip(header, map(float, info.split())))
         transcript_info["transcript"] = transcript.split(".")[0]
@@ -262,12 +264,14 @@ def get_constraint_information(constraint_file):
 
 def get_canonical_transcripts(canonical_transcript_file):
     for line in canonical_transcript_file:
+        line = line.decode()
         gene, transcript = line.strip().split()
         yield gene, transcript
 
 
 def get_omim_associations(omim_file):
     for line in omim_file:
+        line = line.decode()
         fields = line.strip().split("\t")
         if len(fields) == 4:
             yield fields
@@ -281,6 +285,7 @@ def get_genes_from_gencode_gtf(gtf_file):
     Returns iter of gene dicts
     """
     for line in gtf_file:
+        line = line.decode()
         if line.startswith("#"):
             continue
         fields = line.strip("\n").split("\t")
@@ -315,6 +320,7 @@ def get_transcripts_from_gencode_gtf(gtf_file):
     Returns iter of transcript dicts
     """
     for line in gtf_file:
+        line = line.decode()
         if line.startswith("#"):
             continue
         fields = line.strip("\n").split("\t")
@@ -349,6 +355,7 @@ def get_exons_from_gencode_gtf(gtf_file):
     Returns iter of transcript dicts
     """
     for line in gtf_file:
+        line = line.decode()
         if line.startswith("#"):
             continue
         fields = line.strip("\n").split("\t")
@@ -384,7 +391,7 @@ def get_cnvs_from_txt(cnv_txt_file):
     Parse gencode txt file;
     Returns iter of gene dicts
     """
-    header = cnv_txt_file.next()  # gets rid of the header
+    header = next(cnv_txt_file)  # gets rid of the header
     # print header
     for line in cnv_txt_file:
         fields = line.rsplit()
@@ -426,7 +433,7 @@ def get_cnvs_from_txt(cnv_txt_file):
 
 
 def get_cnvs_per_gene(cnv_gene_file):
-    header = cnv_gene_file.next()  # gets rid of the header
+    header = next(cnv_gene_file)  # gets rid of the header
     for line in cnv_gene_file:
         fields = line.rsplit()
         gene = fields[0]
@@ -464,10 +471,10 @@ def get_dbnsfp_info(dbnsfp_file):
     Parse dbNSFP_gene file;
     Returns iter of transcript dicts
     """
-    header = dbnsfp_file.next().split("\t")
+    header = next(dbnsfp_file).decode().split("\t")
     fields = dict(zip(header, range(len(header))))
     for line in dbnsfp_file:
-        line = line.split("\t")
+        line = line.decode().split("\t")
         other_names = (
             line[fields["Gene_old_names"]].split(";")
             if line[fields["Gene_old_names"]] != "."

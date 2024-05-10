@@ -60,9 +60,9 @@ def load_db():
     ]:
         load_function()
 
-    logger.info("Done! Loading MNPs...")
+    logger.info("Loading MNPs...")
     load_mnps()
-    logger.info("Done! Creating cache...")
+    logger.info("Creating cache...")
     create_cache()
     logger.info("Done!")
 
@@ -91,21 +91,25 @@ def create_cache():
     # get list of genes ordered by num_variants
     for gene_id in settings.GENES_TO_CACHE:
         try:
-            page_content = get_gene_page_content(gene_id)
+            page_content = get_gene_page_content(get_context=False, gene_id=gene_id)
         except Exception as e:
             logger.info(e)
             continue
-        f = open(os.path.join(settings.GENE_CACHE_DIR, "{}.html".format(gene_id)), "w")
-        f.write(page_content)
-        f.close()
+
+        if page_content is not None:
+            f = open(
+                os.path.join(settings.GENE_CACHE_DIR, "{}.html".format(gene_id)), "w"
+            )
+            f.write(page_content)
+            f.close()
 
 
-def get_gene_page_content(request: Request, gene_id: str):
+def get_gene_page_content(get_context: bool, gene_id: str):
     db = get_db()
     try:
         gene = lookups.get_gene(db, gene_id)
         if gene is None:
-            return Response(status_code=404)
+            return None
 
         variants_in_gene = lookups.get_variants_in_gene(db, gene_id)
         transcripts_in_gene = lookups.get_transcripts_in_gene(db, gene_id)
@@ -124,26 +128,26 @@ def get_gene_page_content(request: Request, gene_id: str):
         add_transcript_coordinate_to_variants(db, variants_in_transcript, transcript_id)
         constraint_info = lookups.get_constraint_for_transcript(db, transcript_id)
 
-        t = templates.TemplateResponse(
-            request=request,
-            name="gene.html",
-            context=dict(
-                gene=gene,
-                transcript=transcript,
-                variants_in_gene=variants_in_gene,
-                variants_in_transcript=variants_in_transcript,
-                transcripts_in_gene=transcripts_in_gene,
-                coverage_stats=coverage_stats,
-                cnvs=cnvs_in_transcript,
-                cnvgenes=cnvs_per_gene,
-                constraint=constraint_info,
-            ),
+        context = dict(
+            gene=gene,
+            transcript=transcript,
+            variants_in_gene=variants_in_gene,
+            variants_in_transcript=variants_in_transcript,
+            transcripts_in_gene=transcripts_in_gene,
+            coverage_stats=coverage_stats,
+            cnvs=cnvs_in_transcript,
+            cnvgenes=cnvs_per_gene,
+            constraint=constraint_info,
         )
-        logger.info("Rendering gene: %s" % gene_id)
-        return t
+        if get_context:
+            logger.info("Rendering gene: %s" % gene_id)
+            return context
+        else:
+            # return template
+            return templates.TemplateResponse(name="gene.html", context=context)
     except Exception:
         logger.info("Failed on gene:", gene_id, ";Error=", traceback.format_exc())
-        return Response(status_code=404)
+        return None
 
 
 def precalculate_metrics():
@@ -281,9 +285,9 @@ def load_cnv_genes():
     db = get_db()
     start_time = time.time()
     with open(settings.CNV_GENE_FILE) as cnv_gene_file:
-        for cnvgene in get_cnvs_per_gene(cnv_gene_file):
-            db.cnvgenes.insert_one(cnvgene)
-            # progress.update(gtf_file.fileobj.tell())
+        result = list(get_cnvs_per_gene(cnv_gene_file))[:100]  # TODO
+        db.cnvgenes.insert_many(result)
+        # progress.update(gtf_file.fileobj.tell())
         # progress.finish()
 
     logger.info(
@@ -334,7 +338,7 @@ def parse_tabix_file_subset(tabix_filenames, subset_i, subset_n, record_parser):
             counter += 1
             yield parsed_record
 
-            if counter % 100000 == 0:
+            if counter % 100 == 0:
                 seconds_elapsed = int(time.time() - start_time)
                 logger.info(
                     (
@@ -343,6 +347,7 @@ def parse_tabix_file_subset(tabix_filenames, subset_i, subset_n, record_parser):
                     )
                     % locals()
                 )
+                break
 
     logger.info(
         "Finished loading subset %(subset_i)s from  %(short_filenames)s (%(counter)s records)"
@@ -436,14 +441,14 @@ def load_variants_file():
 
 def load_constraint_information():
     db = get_db()
-
     db.constraint.drop()
-    logger.info("Dropped db.constraint.")
+    logger.info("Dropped db.constraint")
 
     start_time = time.time()
 
     with gzip.open(settings.CONSTRAINT_FILE) as constraint_file:
         for transcript in get_constraint_information(constraint_file):
+            transcript = {str(k): v for k, v in transcript.items()}  # TODO
             db.constraint.insert_one(transcript)
 
     db.constraint.create_index("transcript")
@@ -458,10 +463,10 @@ def load_mnps():
 
     db.variants.create_index("has_mnp")
     logger.info("Done indexing.")
-    while db.variants.find_and_modify(
-        {"has_mnp": True}, {"$unset": {"has_mnp": "", "mnps": ""}}
-    ):
-        pass
+    db.variants.update_many(
+        filter={"has_mnp": True}, update={"$unset": {"has_mnp": "", "mnps": ""}}
+    )
+
     logger.info("Deleted MNP data.")
 
     with gzip.open(settings.MNP_FILE) as mnp_file:
@@ -469,11 +474,11 @@ def load_mnps():
             variant = lookups.get_raw_variant(
                 db, mnp["xpos"], mnp["ref"], mnp["alt"], True
             )
-            db.variants.find_and_modify(
-                {"_id": variant["_id"]},
-                {"$set": {"has_mnp": True}, "$push": {"mnps": mnp}},
-                w=0,
-            )
+            if variant is not None:
+                db.variants.update_many(
+                    filter={"_id": variant["_id"]},
+                    update={"$set": {"has_mnp": True}, "$push": {"mnps": mnp}},
+                )
 
     db.variants.create_index("has_mnp")
     logger.info(
@@ -483,11 +488,10 @@ def load_mnps():
 
 def load_gene_models():
     db = get_db()
-
     db.genes.drop()
     db.transcripts.drop()
     db.exons.drop()
-    logger.info("Dropped db.genes, db.transcripts, and db.exons.")
+    logger.info("Dropped db.genes, db.transcripts, and db.exons")
 
     start_time = time.time()
 
@@ -499,7 +503,6 @@ def load_gene_models():
     omim_annotations = {}
     with gzip.open(settings.OMIM_FILE) as omim_file:
         for fields in get_omim_associations(omim_file):
-            logger.info(fields)
             if fields is None:
                 continue
             gene, transcript, accession, description = fields
@@ -583,15 +586,14 @@ def load_gene_models():
 
 def load_cnv_models():
     db = get_db()
-
     db.cnvs.drop()
-    logger.info("Dropped db.cnvs.")
+    logger.info("Dropped db.cnvs")
 
     start_time = time.time()
     with open(settings.CNV_FILE) as cnv_txt_file:
-        for cnv in get_cnvs_from_txt(cnv_txt_file):
-            db.cnvs.insert_one(cnv)
-            # progress.update(gtf_file.fileobj.tell())
+        result = list(get_cnvs_from_txt(cnv_txt_file))[:100]  # TODO
+        db.cnvs.insert_many(result)
+        # progress.update(gtf_file.fileobj.tell())
         # progress.finish()
 
     logger.info("Done loading CNVs. Took %s seconds" % int(time.time() - start_time))

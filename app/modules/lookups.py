@@ -13,21 +13,21 @@ from modules.utils import (
 
 
 def get_gene(db, gene_id):
-    return db.genes.find_one({"gene_id": gene_id}, fields={"_id": False})
+    return db.genes.find_one({"gene_id": gene_id}, {"_id": False})
 
 
 def get_gene_by_name(db, gene_name):
     # try gene_name field first
-    gene = db.genes.find_one({"gene_name": gene_name}, fields={"_id": False})
+    gene = db.genes.find_one({"gene_name": gene_name}, {"_id": False})
     if gene:
         return gene
     # if not, try gene['other_names']
-    return db.genes.find_one({"other_names": gene_name}, fields={"_id": False})
+    return db.genes.find_one({"other_names": gene_name}, {"_id": False})
 
 
 def get_transcript(db, transcript_id):
     transcript = db.transcripts.find_one(
-        {"transcript_id": transcript_id}, fields={"_id": False}
+        {"transcript_id": transcript_id}, {"_id": False}
     )
     if not transcript:
         return None
@@ -36,9 +36,7 @@ def get_transcript(db, transcript_id):
 
 
 def get_raw_variant(db, xpos, ref, alt, get_id=False):
-    return db.variants.find_one(
-        {"xpos": xpos, "ref": ref, "alt": alt}, fields={"_id": get_id}
-    )
+    return db.variants.find_one({"xpos": xpos, "ref": ref, "alt": alt}, {"_id": get_id})
 
 
 def get_variant(db, xpos, ref, alt):
@@ -59,7 +57,7 @@ def get_variants_by_rsid(db, rsid):
         int(rsid.lstrip("rs"))
     except Exception:
         return None
-    variants = list(db.variants.find({"rsid": rsid}, fields={"_id": False}))
+    variants = list(db.variants.find({"rsid": rsid}, {"_id": False}))
     add_consequence_to_variants(variants)
     return variants
 
@@ -76,7 +74,7 @@ def get_variants_from_dbsnp(db, rsid):
         variants = list(
             db.variants.find(
                 {"xpos": {"$lte": position["xpos"], "$gte": position["xpos"]}},
-                fields={"_id": False},
+                {"_id": False},
             )
         )
         if variants:
@@ -96,7 +94,7 @@ def get_coverage_for_bases(db, xstart, xstop=None):
     coverages = {
         doc["xpos"]: doc
         for doc in db.base_coverage.find(
-            {"xpos": {"$gte": xstart, "$lte": xstop}}, fields={"_id": False}
+            {"xpos": {"$gte": xstart, "$lte": xstop}}, {"_id": False}
         )
     }
     ret = []
@@ -130,15 +128,15 @@ def get_coverage_for_transcript(db, xstart, xstop=None):
 
 
 def get_constraint_for_transcript(db, transcript):
-    return db.constraint.find_one({"transcript": transcript}, fields={"_id": False})
+    return db.constraint.find_one({"transcript": transcript}, {"_id": False})
 
 
 def get_exons_cnvs(db, transcript_name):
-    return list(db.cnvs.find({"transcript": transcript_name}, fields={"_id": False}))
+    return list(db.cnvs.find({"transcript": transcript_name}, {"_id": False}))
 
 
 def get_cnvs(db, gene_name):
-    return list(db.cnvgenes.find({"gene": gene_name}, fields={"_id": False}))
+    return list(db.cnvgenes.find({"gene": gene_name}, {"_id": False}))
 
 
 def get_awesomebar_suggestions(g, query):
@@ -257,7 +255,7 @@ def get_genes_in_region(db, chrom, start, stop):
             "xstart": {"$lte": xstop},
             "xstop": {"$gte": xstart},
         },
-        fields={"_id": False},
+        {"_id": False},
     )
     return list(genes)
 
@@ -271,10 +269,8 @@ def get_variants_in_region(db, chrom, start, stop):
     xstop = get_xpos(chrom, stop)
     variants = list(
         db.variants.find(
-            {"xpos": {"$lte": xstop, "$gte": xstart}},
-            fields={"_id": False},
-            limit=settings.SEARCH_LIMIT,
-        )
+            {"xpos": {"$lte": xstop, "$gte": xstart}}, {"_id": False}
+        ).limit(settings.SEARCH_LIMIT)
     )
     add_consequence_to_variants(variants)
     for variant in variants:
@@ -287,7 +283,7 @@ def get_metrics(db, variant):
         return None
     metrics = {}
     for metric in METRICS:
-        metrics[metric] = db.metrics.find_one({"metric": metric}, fields={"_id": False})
+        metrics[metric] = db.metrics.find_one({"metric": metric}, {"_id": False})
 
     metric = None
     if variant["allele_count"] == 1:
@@ -301,7 +297,7 @@ def get_metrics(db, variant):
                 break
     if metric is not None:
         metrics["Site Quality"] = db.metrics.find_one(
-            {"metric": "binned_%s" % metric}, fields={"_id": False}
+            {"metric": "binned_%s" % metric}, {"_id": False}
         )
     return metrics
 
@@ -322,7 +318,7 @@ def remove_extraneous_information(variant):
 def get_variants_in_gene(db, gene_id):
     """ """
     variants = []
-    for variant in db.variants.find({"genes": gene_id}, fields={"_id": False}):
+    for variant in db.variants.find({"genes": gene_id}, {"_id": False}):
         variant["vep_annotations"] = [
             x for x in variant["vep_annotations"] if x["Gene"] == gene_id
         ]
@@ -334,15 +330,13 @@ def get_variants_in_gene(db, gene_id):
 
 def get_transcripts_in_gene(db, gene_id):
     """ """
-    return list(db.transcripts.find({"gene_id": gene_id}, fields={"_id": False}))
+    return list(db.transcripts.find({"gene_id": gene_id}, {"_id": False}))
 
 
 def get_variants_in_transcript(db, transcript_id):
     """ """
     variants = []
-    for variant in db.variants.find(
-        {"transcripts": transcript_id}, fields={"_id": False}
-    ):
+    for variant in db.variants.find({"transcripts": transcript_id}, {"_id": False}):
         variant["vep_annotations"] = [
             x for x in variant["vep_annotations"] if x["Feature"] == transcript_id
         ]
@@ -365,7 +359,7 @@ def get_exons_in_transcript(db, transcript_id):
                     "transcript_id": transcript_id,
                     "feature_type": {"$in": ["CDS", "UTR", "exon"]},
                 },
-                fields={"_id": False},
+                {"_id": False},
             )
         ),
         key=lambda k: k["start"],
