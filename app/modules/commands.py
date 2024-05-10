@@ -8,10 +8,9 @@ import traceback
 from collections import defaultdict
 import multiprocessing
 
-import numpy
+import numpy as np
 import pymongo
 import pysam
-from fastapi import Request, Response
 
 from modules.logger import logger
 from modules.settings import settings
@@ -63,7 +62,8 @@ def load_db():
     logger.info("Loading MNPs...")
     load_mnps()
     logger.info("Creating cache...")
-    create_cache()
+    # TODO: fix saving html (Now caching turned off)
+    # create_cache()
     logger.info("Done!")
 
 
@@ -139,11 +139,12 @@ def get_gene_page_content(get_context: bool, gene_id: str):
             cnvgenes=cnvs_per_gene,
             constraint=constraint_info,
         )
+        logger.info("Rendering gene: %s" % gene_id)
+
+        # TODO: fix saving html (Now caching turned off)
         if get_context:
-            logger.info("Rendering gene: %s" % gene_id)
             return context
         else:
-            # return template
             return templates.TemplateResponse(name="gene.html", context=context)
     except Exception:
         logger.info("Failed on gene:", gene_id, ";Error=", traceback.format_exc())
@@ -158,7 +159,7 @@ def precalculate_metrics():
     progress = 0
     start_time = time.time()
     for variant in db.variants.find():
-        for metric, value in variant["quality_metrics"].iteritems():
+        for metric, value in variant["quality_metrics"].items():
             metrics[metric].append(float(value))
         qual = float(variant["site_quality"])
         metrics["site_quality"].append(qual)
@@ -184,7 +185,7 @@ def precalculate_metrics():
     logger.info("Dropped metrics database. Calculating metrics...")
     for metric in metrics:
         bin_range = None
-        data = map(numpy.log, metrics[metric]) if metric == "DP" else metrics[metric]
+        data = map(np.log, metrics[metric]) if metric == "DP" else metrics[metric]
         if metric == "FS":
             bin_range = (0, 20)
         elif metric == "VQSLOD":
@@ -194,17 +195,24 @@ def precalculate_metrics():
         if bin_range is not None:
             data = [x if (x > bin_range[0]) else bin_range[0] for x in data]
             data = [x if (x < bin_range[1]) else bin_range[1] for x in data]
-        hist = numpy.histogram(data, bins=40, range=bin_range)
+
+        data = list(data)
+        hist = np.histogram(data, bins=40, range=bin_range)
+
         edges = hist[1]
         # mids = [(edges[i]+edges[i+1])/2 for i in range(len(edges)-1)]
-        lefts = [edges[i] for i in range(len(edges) - 1)]
-        db.metrics.insert_one({"metric": metric, "mids": lefts, "hist": list(hist[0])})
+        lefts = [float(edges[i]) for i in range(len(edges) - 1)]
+
+        hist_result = list(map(int, list(hist[0])))
+        db.metrics.insert_one({"metric": metric, "mids": lefts, "hist": hist_result})
     for metric in binned_metrics:
-        hist = numpy.histogram(map(numpy.log, binned_metrics[metric]), bins=40)
+        hist = np.histogram(list(map(np.log, binned_metrics[metric])), bins=40)
         edges = hist[1]
-        mids = [(edges[i] + edges[i + 1]) / 2 for i in range(len(edges) - 1)]
+        mids = [float((edges[i] + edges[i + 1]) / 2) for i in range(len(edges) - 1)]
+        hist_result = list(map(int, list(hist[0])))
+
         db.metrics.insert_one(
-            {"metric": "binned_%s" % metric, "mids": mids, "hist": list(hist[0])}
+            {"metric": "binned_%s" % metric, "mids": mids, "hist": hist_result}
         )
     db.metrics.create_index("metric")
     logger.info("Done pre-calculating metrics!")
@@ -230,7 +238,6 @@ def _load_dbsnp(dbsnp_file, i, n):
 
 def load_dbsnp_file():
     db = get_db()
-
     db.dbsnp.drop()
     db.dbsnp.create_index("rsid")
     db.dbsnp.create_index("xpos")
@@ -448,7 +455,6 @@ def load_constraint_information():
 
     with gzip.open(settings.CONSTRAINT_FILE) as constraint_file:
         for transcript in get_constraint_information(constraint_file):
-            transcript = {str(k): v for k, v in transcript.items()}  # TODO
             db.constraint.insert_one(transcript)
 
     db.constraint.create_index("transcript")

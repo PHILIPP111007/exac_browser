@@ -1,4 +1,3 @@
-import os
 import pymongo
 
 from modules.settings import settings
