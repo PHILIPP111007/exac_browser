@@ -445,7 +445,9 @@ def read_viz_files(request: Request, path):
     # handle igv.js Range header which it uses to request a subset of a .bam
     range_header = request.headers.get("Range", None)
     if not range_header:
-        return send_from_directory(settings.READ_VIZ_DIR, path)
+        return send_from_directory(
+            settings.READ_VIZ_DIR, path
+        )  # TODO: find this funtion
 
     m = re.search(r"(\d+)-(\d*)", range_header)
     if not m:

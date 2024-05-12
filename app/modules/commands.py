@@ -67,6 +67,7 @@ def load_db():
     logger.info("Done!")
 
 
+# TODO: now is not working because of template rendering
 def create_cache():
     """
     This is essentially a compile step that generates all cached resources.
