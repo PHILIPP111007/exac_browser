@@ -484,4 +484,5 @@ if __name__ == "__main__":
         port=settings.PORT,
         reload=True,
         use_colors=True,
+        workers=1,
     )
