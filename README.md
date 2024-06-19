@@ -78,7 +78,7 @@ You could do this in the background if you want or set up some startup service,
 but I think it's easier just to open a tab you can monitor.
 
 ```sh
-micromamba env create -f ./env.yml
+micromamba env create -f ./app/env.yml
 ```
 
 ### Running the app
@@ -88,17 +88,15 @@ Note that if you are revisiting the site after a break, make sure your virtualen
 You can run the development server with:
 
 ```sh
+cd app
 python main.py
+# or
+uvicorn main:app --host 0.0.0.0 --port 80
 ```
 
 And visit on your browser:
-
-    http://localhost
-    http://localhost/gene/ENSG00000237683
-    http://localhost/variant/20-76735-A-T
-
-For testing, you can open up an interactive shell with:
-
-```sh
-python manage.py shell
+```
+http://localhost
+http://localhost/gene/ENSG00000237683
+http://localhost/variant/20-76735-A-T
 ```

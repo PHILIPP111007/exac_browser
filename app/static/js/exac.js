@@ -182,7 +182,7 @@ function draw_quality_histogram(data, container, log, xlabel, ylabel) {
     //If data already in container, transitions to new data
     var x;
     if (log) {
-        x = d3.scale.log()
+        x = d3.scaleLog()
             .domain([d3.min(data, function (d) {
                 return d[0];
             }), d3.max(data, function (d) {
@@ -190,7 +190,7 @@ function draw_quality_histogram(data, container, log, xlabel, ylabel) {
             })])
             .range([0, quality_chart_width]);
     } else {
-        x = d3.scale.linear()
+        x = d3.scaleLinear()
             .domain([d3.min(data, function (d) {
                 return d[0];
             }), d3.max(data, function (d) {
@@ -199,17 +199,13 @@ function draw_quality_histogram(data, container, log, xlabel, ylabel) {
             .range([0, quality_chart_width]);
     }
     var bar_width = x(data[1][0]) - x(data[0][0]);
-    var y = d3.scale.linear()
+    var y = d3.scaleLinear()
         .domain([d3.min(data, function (d) { return d[1]; }), d3.max(data, function (d) { return d[1]; })])
         .range([quality_chart_height, 0]);
 
-    var xAxis = d3.svg.axis()
-        .scale(x)
-        .orient("bottom");
+    var xAxis = d3.axisBottom(x);
 
-    var yAxis = d3.svg.axis()
-        .scale(y)
-        .orient("left");
+    var yAxis = d3.axisLeft(y);
 
     var svg = d3.select(container);
     if (svg.selectAll('rect').length == 0 || svg.selectAll('rect')[0].length == 0) {
@@ -318,11 +314,11 @@ function add_line_to_quality_histogram(data, position, container, log) {
     var low_value = d3.min(data, function (d) { return d[0]; });
     var high_value = d3.max(data, function (d) { return d[0]; });
     if (log) {
-        xscale = d3.scale.log()
+        xscale = d3.scaleLog()
             .domain([low_value, high_value])
             .range([0, quality_chart_width]);
     } else {
-        xscale = d3.scale.linear()
+        xscale = d3.scaleLinear()
             .domain([low_value, high_value])
             .range([0, quality_chart_width]);
     }
@@ -370,21 +366,17 @@ function draw_region_coverage(raw_data, metric, ref) {
     if (raw_data.length > 1) {
         var data = raw_data;
         var chart_width = _.min([region_chart_width, data.length * 30]);
-        var x = d3.scale.linear()
+        var x = d3.scaleLinear()
             .domain([0, data.length])
             .range([0, chart_width]);
 
-        var y = d3.scale.linear()
+        var y = d3.scaleLinear()
             .domain([0, d3.max(data, function (d) { return d[metric]; })])
             .range([quality_chart_height, 0]);
 
-        var xAxis = d3.svg.axis()
-            .scale(x)
-            .orient("bottom");
+        var xAxis = d3.axisBottom(x);
 
-        var yAxis = d3.svg.axis()
-            .scale(y)
-            .orient("left");
+        var yAxis = d3.axisLeft(y);
 
         var svg = d3.select('#region_coverage');
 
@@ -407,11 +399,9 @@ function draw_region_coverage(raw_data, metric, ref) {
                 .attr("height", function (d) { return quality_chart_height - y(d[metric]); })
                 .attr("y", function (d) { return y(d[metric]); });
 
-            xAxis = d3.svg.axis()
-                .scale(x)
+            xAxis = d3.axisBottom(x)
                 .tickFormat(function (d) { return ref[d]; })
-                .innerTickSize(0)
-                .orient("bottom");
+                .innerTickSize(0);
 
             svg.append("g")
                 .attr("class", "x axis")
@@ -455,30 +445,24 @@ function draw_region_coverage(raw_data, metric, ref) {
 
         var chart_width = region_chart_width;
         var total_data_length = coverages.length + other_labels.length + PADDING;
-        var x = d3.scale.linear()
+        var x = d3.scaleLinear()
             .domain([0, total_data_length])
             .range([0, chart_width]);
 
-        var y1 = d3.scale.linear()
+        var y1 = d3.scaleLinear()
             .domain([0, d3.max(coverages, function (d) { return data1[d]; })])
             .range([quality_chart_height, 0]);
 
-        var y2 = d3.scale.linear()
+        var y2 = d3.scaleLinear()
             .domain([0, d3.max(other_labels, function (d) { return data2[d]; })])
             .range([quality_chart_height, 0]);
 
-        var xAxis = d3.svg.axis()
-            .scale(x)
-            .tickFormat(function (d) { return all_labels[d - 1]; })
-            .orient("bottom");
+        var xAxis = d3.axisBottom(x)
+            .tickFormat(function (d) { return all_labels[d - 1]; });
 
-        var yAxis1 = d3.svg.axis()
-            .scale(y1)
-            .orient("left");
+        var yAxis1 = d3.axisLeft(y1);
 
-        var yAxis2 = d3.svg.axis()
-            .scale(y2)
-            .orient("right");
+        var yAxis2 = d3.axisRight(y2);
 
         svg = d3.select('#region_coverage').append("svg")
             .attr('id', 'inner_svg')
@@ -681,11 +665,11 @@ function change_track_chart_variant_size(variant_data, change_to, container) {
     var min_af = bounds[0];
     var max_af = bounds[1];
     if (change_to) {
-        variant_size_scale = d3.scale.log()
+        variant_size_scale = d3.scaleLog()
             .domain([min_af, max_af])
             .range([lower_gene_chart_height / 3, 2]);
     } else {
-        variant_size_scale = d3.scale.log()
+        variant_size_scale = d3.scaleLog()
             .domain([min_af, max_af])
             .range([2, lower_gene_chart_height / 3]);
     }

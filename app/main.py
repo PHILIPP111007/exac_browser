@@ -10,7 +10,6 @@ from fastapi import FastAPI, Request, Response
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 
-from modules.fastapi_globals import g
 from modules.logger import logger
 from modules.settings import settings
 from modules.db import get_db
@@ -45,20 +44,15 @@ app.mount("/static", StaticFiles(directory=static_dir), name="static")
 
 
 @app.get("/", response_class=HTMLResponse)
-def homepage(request: Request):
+async def homepage(request: Request):
     return templates.TemplateResponse(request=request, name="homepage.html")
 
 
 @app.get("/autocomplete/{query}/")
-def awesome_autocomplete(request: Request, query):
-    if not hasattr(g, "autocomplete_strings"):
-        g.autocomplete_strings = [
-            s.strip()
-            for s in open(
-                os.path.join(os.path.dirname(__file__), "autocomplete_strings.txt")
-            )
-        ]
-    suggestions = lookups.get_awesomebar_suggestions(g, query)
+async def awesome_autocomplete(request: Request, query):
+    from modules.autocomplete_strings import AUTOCOMPLETE_STRINGS
+
+    suggestions = await lookups.get_awesomebar_suggestions(AUTOCOMPLETE_STRINGS, query)
     return Response(
         json.dumps([{"value": s} for s in suggestions]), media_type="application/json"
     )
@@ -222,9 +216,9 @@ def variant_page(request: Request, variant_str: str):
 @app.get("/gene/{gene_id}/")
 def gene_page(request: Request, gene_id: str):
     if gene_id in settings.GENES_TO_CACHE:
-        return open(
-            os.path.join(settings.GENE_CACHE_DIR, "{}.html".format(gene_id))
-        ).read()
+        path = os.path.join(settings.GENE_CACHE_DIR, "{}.html".format(gene_id))
+        with open(path, "r") as f:
+            return f.read()
     else:
         context = get_gene_page_content(get_context=True, gene_id=gene_id)
         if context is None:
@@ -360,7 +354,7 @@ def dbsnp_page(request: Request, rsid):
 
 
 @app.get("/not_found/{query}/")
-def not_found_page(request: Request, query):
+async def not_found_page(request: Request, query):
     return templates.TemplateResponse(
         request=request,
         name="not_found.html",
@@ -370,39 +364,39 @@ def not_found_page(request: Request, query):
 
 
 @app.get("/error/{query}/")
-def error_page(request: Request, query):
+async def error_page(request: Request, query):
     return templates.TemplateResponse(
         request=request, name="error.html", status_code=404, context=dict(query=query)
     )
 
 
 @app.get("/downloads/")
-def downloads_page(request: Request):
+async def downloads_page(request: Request):
     return templates.TemplateResponse(request=request, name="downloads.html")
 
 
 @app.get("/about/")
-def about_page(request: Request):
+async def about_page(request: Request):
     return templates.TemplateResponse(request=request, name="about.html")
 
 
 @app.get("/participants/")
-def participants_page(request: Request):
+async def participants_page(request: Request):
     return templates.TemplateResponse(request=request, name="about.html")
 
 
 @app.get("/terms/")
-def terms_page(request: Request):
+async def terms_page(request: Request):
     return templates.TemplateResponse(request=request, name="terms.html")
 
 
 @app.get("/contact/")
-def contact_page(request: Request):
+async def contact_page(request: Request):
     return templates.TemplateResponse(request=request, name="contact.html")
 
 
 @app.get("/faq/")
-def faq_page(request: Request):
+async def faq_page(request: Request):
     return templates.TemplateResponse(request=request, name="faq.html")
 
 
@@ -434,13 +428,14 @@ http://omim.org/entry/%(omim_accession)s"""
         return "Search types other than gene transcript not yet supported"
 
 
+# TODO: errors
 @app.get("/read_viz/{path:path}/")
 def read_viz_files(request: Request, path):
     full_path = os.path.abspath(os.path.join(settings.READ_VIZ_DIR, path))
 
     # security check - only files under READ_VIZ_DIR should be accsessible
     if not full_path.startswith(settings.READ_VIZ_DIR):
-        return "Invalid path: %s" % path
+        return Response("Invalid path: %s" % path, status_code=404)
 
     # handle igv.js Range header which it uses to request a subset of a .bam
     range_header = request.headers.get("Range", None)

@@ -1,4 +1,5 @@
 import re
+import difflib
 
 from modules.settings import settings
 from modules.logger import logger
@@ -139,14 +140,14 @@ def get_cnvs(db, gene_name):
     return list(db.cnvgenes.find({"gene": gene_name}, {"_id": False}))
 
 
-def get_awesomebar_suggestions(g, query):
+async def get_awesomebar_suggestions(AUTOCOMPLETE_STRINGS, query):
     """
     This generates autocomplete suggestions when user
     query is the string that user types
     If it is the prefix for a gene, return list of gene names
     """
-    regex = re.compile(r"^" + re.escape(query), re.IGNORECASE)
-    results = [r for r in g.autocomplete_strings if regex.match(r)][:20]
+
+    results = difflib.get_close_matches(query, AUTOCOMPLETE_STRINGS, n=5)
     return results
 
 

@@ -70,7 +70,7 @@ def load_mnps():
 
 @manager.command("create_cache")
 def create_cache():
-    # commands.create_cache()
+    commands.create_cache()
     logger.warning("now is not working because of template rendering")
 
 

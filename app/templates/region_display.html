@@ -18,22 +18,18 @@ lower_gene_chart_height = 50 - gene_chart_margin_lower.top - gene_chart_margin_l
 function region_chart(data, variant_data) {
     var metric = 'mean';
 
-    var x = d3.scale.linear()
+    var x = d3.scaleLinear()
         .domain([d3.min(data, function(d) { return d.pos; }), d3.max(data, function(d) { return d.pos; })])
         .range([0, gene_chart_width]);
 
     var max_cov = (metric == 'mean' || metric == 'median') ? 100 : 1;
-    var y = d3.scale.linear()
+    var y = d3.scaleLinear()
         .domain([0, max_cov])
         .range([gene_chart_height, 0]);
 
-    var xAxis = d3.svg.axis()
-        .scale(x)
-        .orient("bottom");
+    var xAxis = d3.axisBottom(x);
 
-    var yAxis = d3.svg.axis()
-        .scale(y)
-        .orient("left");
+    var yAxis = d3.axisLeft(y);
 
     var svg = d3.select('#region_plot_container').append("svg")
         .attr("width", gene_chart_width + gene_chart_margin.left + gene_chart_margin.right)
@@ -98,7 +94,7 @@ function region_chart(data, variant_data) {
     var bounds = get_af_bounds(variant_data);
     var min_af = bounds[0];
     var max_af = bounds[1];
-    var variant_size_scale = d3.scale.log()
+    var variant_size_scale = d3.scaleLog()
         .domain([min_af, max_af])
         //Circle/Ellipse
         .range([2, lower_gene_chart_height/3]);
@@ -187,7 +183,7 @@ function region_chart(data, variant_data) {
 function change_region_chart_metric(data, metric, container) {
     var max_cov = (metric == 'mean' || metric == 'median') ? 100 : 1;
 
-    var y = d3.scale.linear()
+    var y = d3.scaleLinear()
         .domain([0, max_cov])
         .range([gene_chart_height, 0]);
 
@@ -200,9 +196,7 @@ function change_region_chart_metric(data, metric, container) {
         .attr("y", function(d) { return y(d[metric]); })
         .attr("height", function(d) { return gene_chart_height - y(d[metric]); });
 
-    var yAxis = d3.svg.axis()
-        .scale(y)
-        .orient("left");
+    var yAxis = d3.axisLeft(y);
 
     svg.select(".y.axis")
         .transition()

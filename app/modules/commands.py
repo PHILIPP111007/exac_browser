@@ -62,8 +62,7 @@ def load_db():
     logger.info("Loading MNPs...")
     load_mnps()
     logger.info("Creating cache...")
-    # TODO: fix saving html (Now caching turned off)
-    # create_cache()
+    create_cache()
     logger.info("Done!")
 
 
@@ -71,10 +70,10 @@ def load_db():
 def create_cache():
     """
     This is essentially a compile step that generates all cached resources.
-    Creates files like autocomplete_entries.txt
+    Creates files like autocomplete_strings.txt
     Should be run on every redeploy.
     """
-    # create autocomplete_entries.txt
+    # create autocomplete_strings.txt
     autocomplete_strings = []
     for gene in get_db().genes.find():
         autocomplete_strings.append(gene["gene_name"])
@@ -84,6 +83,8 @@ def create_cache():
     for s in sorted(autocomplete_strings):
         f.write(s + "\n")
     f.close()
+
+    return
 
     # create static gene pages for genes in
     if not os.path.exists(settings.GENE_CACHE_DIR):
@@ -176,7 +177,7 @@ def precalculate_metrics():
                     binned_metrics[af].append(qual)
                     break
         progress += 1
-        if not progress % 100000:
+        if not progress % 100_000:
             logger.info(
                 "Read %s variants. Took %s seconds"
                 % (progress, int(time.time() - start_time))
@@ -293,7 +294,7 @@ def load_cnv_genes():
     db = get_db()
     start_time = time.time()
     with open(settings.CNV_GENE_FILE) as cnv_gene_file:
-        result = list(get_cnvs_per_gene(cnv_gene_file))  # [:100]  # TODO
+        result = list(get_cnvs_per_gene(cnv_gene_file))
         db.cnvgenes.insert_many(result)
         # progress.update(gtf_file.fileobj.tell())
         # progress.finish()
@@ -346,7 +347,7 @@ def parse_tabix_file_subset(tabix_filenames, subset_i, subset_n, record_parser):
             counter += 1
             yield parsed_record
 
-            if counter % 100 == 0:
+            if counter % 20_000 == 0:
                 seconds_elapsed = int(time.time() - start_time)
                 logger.info(
                     (
@@ -355,7 +356,6 @@ def parse_tabix_file_subset(tabix_filenames, subset_i, subset_n, record_parser):
                     )
                     % locals()
                 )
-                # break # TODO
 
     logger.info(
         "Finished loading subset %(subset_i)s from  %(short_filenames)s (%(counter)s records)"
@@ -455,8 +455,8 @@ def load_constraint_information():
     start_time = time.time()
 
     with gzip.open(settings.CONSTRAINT_FILE) as constraint_file:
-        for transcript in get_constraint_information(constraint_file):
-            db.constraint.insert_one(transcript)
+        result = list(get_constraint_information(constraint_file))
+        db.constraint.insert_many(result)
 
     db.constraint.create_index("transcript")
     logger.info(
@@ -598,7 +598,7 @@ def load_cnv_models():
 
     start_time = time.time()
     with open(settings.CNV_FILE) as cnv_txt_file:
-        result = list(get_cnvs_from_txt(cnv_txt_file))  # [:100]  # TODO
+        result = list(get_cnvs_from_txt(cnv_txt_file))
         db.cnvs.insert_many(result)
         # progress.update(gtf_file.fileobj.tell())
         # progress.finish()

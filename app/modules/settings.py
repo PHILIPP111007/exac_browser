@@ -1,18 +1,17 @@
 import os
 import glob
-# from multiprocessing import cpu_count
 
 from pydantic_settings import BaseSettings
 
 
 EXAC_FILES_DIRECTORY = os.environ.get("EXAC_FILES_DIRECTORY", "./exac_data")
-CPU_COUNT = 4  # cpu_count() - 2
+CPU_COUNT = 8
 
 
 class Settings(BaseSettings):
     APP: str = os.environ.get("APP", "main:app")
-    HOST: str = os.environ.get("HOST", "0.0.0.0")
-    PORT: int = os.environ.get("PORT", 80)
+    HOST: str = os.environ.get("HOST", "localhost")
+    PORT: int = os.environ.get("PORT", 8000)
 
     SECRET_KEY: str = os.environ.get("SECRET_KEY", "12345")
     DEBUG: bool = True
@@ -68,6 +67,8 @@ class Settings(BaseSettings):
     }
     REGION_LIMIT: float = 1e5
     EXON_PADDING: int = 50
+
+    AUTOCOMPLETE_STRINGS_DIR: str = os.path.join(os.path.dirname(__file__), "autocomplete_strings.txt")
 
 
 settings = Settings()

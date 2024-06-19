@@ -3,6 +3,11 @@
 //
 // Tooltips for d3.js SVG visualizations
 
+// d3.functor is deprecated
+function d3_functor(v) {
+  return typeof v === "function" ? v : function () { return v; };
+}
+
 (function (root, factory) {
   if (typeof define === 'function' && define.amd) {
     // AMD. Register as an anonymous module with d3 as a dependency.
@@ -111,7 +116,7 @@
     // Returns tip or direction
     tip.direction = function (v) {
       if (!arguments.length) return direction
-      direction = v == null ? v : d3.functor(v)
+      direction = v == null ? v : d3_functor(v)
 
       return tip
     }
@@ -123,7 +128,7 @@
     // Returns offset or
     tip.offset = function (v) {
       if (!arguments.length) return offset
-      offset = v == null ? v : d3.functor(v)
+      offset = v == null ? v : d3_functor(v)
 
       return tip
     }
@@ -135,7 +140,7 @@
     // Returns html value or tip
     tip.html = function (v) {
       if (!arguments.length) return html
-      html = v == null ? v : d3.functor(v)
+      html = v == null ? v : d3_functor(v)
 
       return tip
     }

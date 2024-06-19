@@ -66,7 +66,7 @@ var make_cnvs_svg = function(_cnvs, _transcript, scale_type, skip_utrs)
         chart_width = coding_coordinate_params.size*2;
     }
 
-    var exon_x_scale = d3.scale.linear()
+    var exon_x_scale = d3.scaleLinear()
         .domain([0, coding_coordinate_params.size])
         .range([0, chart_width]);
 
@@ -85,14 +85,12 @@ var make_cnvs_svg = function(_cnvs, _transcript, scale_type, skip_utrs)
         .attr('id', 'track')
         .attr("transform", "translate(" + cnv_chart_margin.left + "," + 0 + ")");
 
-    var cnv_scale = d3.scale.linear()
+    var cnv_scale = d3.scaleLinear()
          .domain([(-1*(m+1)),(m+1)])
          .range([130,30]);
 
 
-    var yAxis = d3.svg.axis()
-        .scale(cnv_scale)
-        .orient("left")
+    var yAxis = d3.axisLeft(cnv_scale)
         .tickFormat(function(d,i){return Math.abs(d)})
         .ticks(5);
 
@@ -242,18 +240,16 @@ function gene_chart(data, new_data, variant_data, _transcript, _cnvs) {
     var chart_width = gene_chart_width;
     var metric = 'mean';
 
-    var exon_x_scale = d3.scale.linear()
+    var exon_x_scale = d3.scaleLinear()
         .domain([0, coding_coordinate_params.size])
         .range([0, chart_width]);
 
     var max_cov = (metric == 'mean' || metric == 'median') ? 100 : 1;
-    var y = d3.scale.linear()
+    var y = d3.scaleLinear()
         .domain([0, max_cov])
         .range([gene_chart_height, 0]);
 
-    var yAxis = d3.svg.axis()
-        .scale(y)
-        .orient("left");
+    var yAxis = d3.axisLeft(y);
 
     var svg = d3.select('#gene_plot_container').append("svg")
         .attr("width", chart_width + gene_chart_margin.left + gene_chart_margin.right)
@@ -264,7 +260,7 @@ function gene_chart(data, new_data, variant_data, _transcript, _cnvs) {
         .attr('id', 'inner_graph')
         .attr("transform", "translate(" + gene_chart_margin.left + "," + gene_chart_margin.top + ")");
 
-    var area = d3.svg.area()
+    var area = d3.area()
         .x( function(d) {
             return exon_x_scale(d[coords]);
         }).y0( function(d) {
@@ -364,7 +360,7 @@ function gene_chart(data, new_data, variant_data, _transcript, _cnvs) {
     var bounds = get_af_bounds(variant_data);
     var min_af = bounds[0];
     var max_af = bounds[1];
-    var variant_size_scale = d3.scale.log()
+    var variant_size_scale = d3.scaleLog()
         .domain([min_af, max_af])
         //Circle/Ellipse
         .range([2, lower_gene_chart_height/3]);
@@ -499,7 +495,7 @@ function change_coverage_chart(data, new_data, variant_data, _transcript, scale_
         chart_width = coding_coordinate_params.size*2;
     }
 
-    var exon_x_scale = d3.scale.linear()
+    var exon_x_scale = d3.scaleLinear()
         .domain([0, coding_coordinate_params.size])
         .range([0, chart_width]);
 
@@ -508,11 +504,11 @@ function change_coverage_chart(data, new_data, variant_data, _transcript, scale_
         .attr("height", gene_chart_height + gene_chart_margin.top + gene_chart_margin.bottom)
         .select('#inner_graph');
 
-    var y = d3.scale.linear()
+    var y = d3.scaleLinear()
         .domain([0, max_cov])
         .range([gene_chart_height, 0]);
 
-    var area = d3.svg.area()
+    var area = d3.area()
         .x( function(d) {
             return exon_x_scale(d[coords]);
         }).y0( function(d) {
@@ -584,9 +580,7 @@ function change_coverage_chart(data, new_data, variant_data, _transcript, scale_
             }
         });
 
-    var yAxis = d3.svg.axis()
-        .scale(y)
-        .orient("left");
+    var yAxis = d3.axisLeft(y);
 
     svg.select(".y.axis")
         .transition()
